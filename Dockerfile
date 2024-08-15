@@ -14,9 +14,10 @@ WORKDIR /opt/multimon/build
 RUN cmake .. && make
 
 FROM alpine:3.10 AS boswatch
-ARG BW_VERSION=develop
+ARG BW_VERSION=master
+ARG BW_REP=KoenigMjr # Original: BOSWatch
 RUN apk add git && \
-    git clone --depth 1 --branch ${BW_VERSION} https://github.com/BOSWatch/BW3-Core.git /opt/boswatch
+    git clone --depth 1 --branch ${BW_VERSION} https://github.com/${BW_VERSION}/BW3-Core.git /opt/boswatch
 
 
 FROM python:3.6-alpine AS runner
