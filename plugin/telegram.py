@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-r"""!
+"""!
     ____  ____  ______       __      __       __       _____
    / __ )/ __ \/ ___/ |     / /___ _/ /______/ /_     |__  /
   / __  / / / /\__ \| | /| / / __ `/ __/ ___/ __ \     /_ <
@@ -9,127 +9,106 @@ r"""!
                 German BOS Information Script
                      by Bastian Schroll
 
-@file:        telegram.py
-@date:        20.02.2020
-@author:      Jan Speller
-@description: Telegram Plugin
+@file:        telegramdirty.py
+@date:        06.06.2025
+@author:      Claus Schichl
+@description: Telegram dirty
 """
 import logging
 from plugin.pluginBase import PluginBase
 
 # ###################### #
 # Custom plugin includes #
-from telegram.error import (TelegramError, Unauthorized, BadRequest, TimedOut, NetworkError)
-from telegram.ext import messagequeue as mq
-from telegram.utils.request import Request
-import telegram.bot
+import requests
 # ###################### #
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 logging.debug("- %s loaded", __name__)
 
-
-class MQBot(telegram.bot.Bot):
-    '''A subclass of Bot which delegates send method handling to MQ'''
-
-    def __init__(self, *args, is_queued_def=True, mqueue=None, **kwargs):
-        super(MQBot, self).__init__(*args, **kwargs)
-        # below 2 attributes should be provided for decorator usage
-        self._is_messages_queued_default = is_queued_def
-        self._msg_queue = mqueue or mq.MessageQueue()
-
-    def __del__(self):
-        try:
-            self._msg_queue.stop()
-        except:
-            pass
-
-    @mq.queuedmessage
-    def send_message(self, *args, **kwargs):
-        '''Wrapped method would accept new `queued` and `isgroup`
-        OPTIONAL arguments'''
-        return super(MQBot, self).send_message(*args, **kwargs)
-
-
 class BoswatchPlugin(PluginBase):
-    r"""!Description of the Plugin"""
-
+    """!Description of the Plugin"""
     def __init__(self, config):
-        r"""!Do not change anything here!"""
+        """!Do not change anything here!"""
         super().__init__(__name__, config)  # you can access the config class on 'self.config'
 
+    def msg_send(self, bwPacket, msg_payload):
+        """!Funktion zum Senden einer Nachricht über Telegram
+        @param bwPacket: bwPacket instance
+        @param msg_payload: Nachrichtentext, der gesendet werden soll"""
+        
+        bot_token = self.config.get("botToken")
+
+        for chatId in self.config.get("chatIds", default=[]):
+            try:
+                logging.info("Sending message to " + str(chatId))
+                url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+                payload = {
+                    'chat_id': chatId,
+                    'text': msg_payload
+                }
+
+                response = requests.post(url, data=payload)
+
+                if response.status_code == 200:
+                    print("Nachricht erfolgreich gesendet!")
+                else:
+                    print("Fehler beim Senden:", response.text)
+
+            except Exception as e:
+                logging.exception(f"Fehler beim Senden der Nachricht an {chatId}: {e}")
+
     def onLoad(self):
-        r"""!Called by import of the plugin"""
-        if self.config.get("queue", default=True):
-            q = mq.MessageQueue()
-            request = Request(con_pool_size=8)
-            self.bot = MQBot(token=self.config.get("botToken", default=""), request=request, mqueue=q)
-            print('queue')
-        else:
-            self.bot = telegram.Bot(token=self.config.get("botToken"))
-            print('normal')
+        """!Called by import of the plugin"""
+        msg_payload = self.config.get("startup_message")
+        self.msg_send(None, msg_payload)
+
+    def setup(self):
+        """!Called before alarm
+        Remove if not implemented"""
+        pass
 
     def fms(self, bwPacket):
-        r"""!Called on FMS alarm
-
+        """!Called on FMS alarm
         @param bwPacket: bwPacket instance"""
-        msg = self.parseWildcards(self.config.get("message_fms", default="{FMS}"))
-        self._sendMessage(msg)
+        msg_payload = self.parseWildcards(
+            self.config.get("message_fms", default="{FMS}")  # Übergabe mit Wildcards aus config/server.yaml der "message_fms", falls nicht definiert, Defaultwert
+        )
+        self.msg_send(bwPacket, msg_payload)
 
     def pocsag(self, bwPacket):
-        r"""!Called on POCSAG alarm
-
+        """!Called on POCSAG alarm
         @param bwPacket: bwPacket instance"""
-        msg = self.parseWildcards(self.config.get("message_pocsag", default="{RIC}({SRIC})\n{MSG}"))
-        self._sendMessage(msg)
-
-        if bwPacket.get("lat") is not None and bwPacket.get("lon") is not None:
-            logging.debug("Found coordinates in packet")
-            (lat, lon) = (bwPacket.get("lat"), bwPacket.get("lon"))
-            self._sendLocation(lat, lon)
+        msg_payload = self.parseWildcards(
+            self.config.get("message_pocsag", default="{RIC}({SRIC})\n{MSG}")  # Übergabe mit Wildcards aus config/server.yaml der "message_pocsag", falls nicht definiert, Defaultwert
+        )
+        self.msg_send(bwPacket, msg_payload)
 
     def zvei(self, bwPacket):
-        r"""!Called on ZVEI alarm
-
+        """!Called on ZVEI alarm
         @param bwPacket: bwPacket instance"""
-        msg = self.parseWildcards(self.config.get("message_zvei", default="{TONE}"))
-        self._sendMessage(msg)
+        msg_payload = self.parseWildcards(
+            self.config.get("message_zvei", default="{TONE}")  # Übergabe mit Wildcards aus config/server.yaml der "message_zvei", falls nicht definiert, Defaultwert
+        )
+        self.msg_send(bwPacket, msg_payload)
 
     def msg(self, bwPacket):
-        r"""!Called on MSG packet
-
+        """!Called on MSG packet
         @param bwPacket: bwPacket instance"""
-        msg = self.parseWildcards(self.config.get("message_msg"))
-        self._sendMessage(msg)
+        msg_payload = self.parseWildcards(
+            self.config.get("message_msg")  # Übergabe mit Wildcards aus config/server.yaml der "message_msg", falls nicht definiert, Defaultwert
+        )
+        self.msg_send(bwPacket, msg_payload)
 
-    def _sendMessage(self, message):
-        for chatId in self.config.get("chatIds", default=[]):
-            try:
-                # Send Message via Telegram
-                logging.info("Sending message to " + chatId)
-                self.bot.send_message(chat_id=chatId, text=message)
+    def teardown(self):
+        """!Called after alarm
+        Remove if not implemented"""
+        pass
 
-            except Unauthorized:
-                logging.exception("Error while sending Telegram Message, please Check your api-key")
-            except (TimedOut, NetworkError):
-                logging.exception("Error while sending Telegram Message, please Check your connectivity")
-            except (BadRequest, TelegramError):
-                logging.exception("Error while sending Telegram Message")
-            except Exception as e:
-                logging.exception("Unknown Error while sending Telegram Message: " + str(type(e).__name__) + ": " + str(e))
-
-    def _sendLocation(self, lat, lon):
-        for chatId in self.config.get("chatIds", default=[]):
-            try:
-                # Send Location via Telegram
-                if lat is not None and lon is not None:
-                    logging.info("Sending location to " + chatId)
-                    self.bot.sendLocation(chat_id=chatId, latitude=lat, longitude=lon)
-
-            except Unauthorized:
-                logging.exception("Error while sending Telegram Message, please Check your api-key")
-            except (TimedOut, NetworkError):
-                logging.exception("Error while sending Telegram Message, please Check your connectivity")
-            except (BadRequest, TelegramError):
-                logging.exception("Error while sending Telegram Message")
-            except Exception as e:
-                logging.exception("Unknown Error while sending Telegram Message: " + str(type(e).__name__) + ": " + str(e))
+    def onUnload(self):
+        """!Called by destruction of the plugin
+        Remove if not implemented"""
+        pass
