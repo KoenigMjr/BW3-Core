@@ -38,5 +38,5 @@ decoder:
   poc512: yes
   poc1200: yes
   poc2400: yes
-  Path: /opt/multimon/multimon-ng
+  path: /opt/multimon/multimon-ng
   char: DE
