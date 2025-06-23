@@ -1,0 +1,43 @@
+# Versionskontrolle
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# C/C++-Builds
+*.o
+*.a
+*.so
+*.out
+*.exe
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+
+# Logs und Temp
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Editor-/IDE-Dateien
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Betriebssystem-Müll
+.DS_Store
+Thumbs.db
+
+# Virtualenv
+venv/
+.env

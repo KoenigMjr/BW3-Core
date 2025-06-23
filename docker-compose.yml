@@ -1,0 +1,23 @@
+version: '3'
+services:
+  server:
+    environment:
+      - "TZ=Europe/Berlin"
+    image: ghcr.io/koenigmjr/bw3-core-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/opt/boswatch/config
+      - ./log:/opt/boswatch/log
+  client:
+    environment:
+      - "TZ=Europe/Berlin"
+    image: ghcr.io/koenigmjr/bw3-core-client:latest
+#    ports:
+#     - "8080:8080"
+    volumes:
+      - ./config:/opt/boswatch/config
+      - ./log:/opt/boswatch/log
+    devices:
+      - "/dev/bus/usb"
+
