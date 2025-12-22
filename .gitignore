@@ -15,6 +15,11 @@ log/
 docu/docs/api/html
 docu/site/
 
+# config files
+config/*.yaml
+config/*.ini
+!config/*.example
+
 # Logo Photoshop file
 *.psd
 

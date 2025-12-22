@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 r"""!
     ____  ____  ______       __      __       __       _____
@@ -10,8 +10,8 @@ r"""!
                      by Bastian Schroll
 
 @file:        install_service.py
-@date:        21.11.2025
-@author:      Claus Schichl
+@date:        26.12.2025
+@author:      Claus Schichl, Bastian Schroll
 @description: Install Service File with argparse CLI
 """
 
@@ -22,20 +22,34 @@ import logging
 import argparse
 import yaml
 from pathlib import Path
-from colorama import init as colorama_init, Fore, Style
 
-#  === constants for directories and files ===
-BASE_DIR = Path(__file__).resolve().parent
-BW_DIR = '/opt/boswatch3'
+# === CONSTANTS ===
+BW_DIR = Path('/opt/boswatch3')
+BW_VENV = BW_DIR / 'venv' / 'bin' / 'python'
 SERVICE_DIR = Path('/etc/systemd/system')
-CONFIG_DIR = (BASE_DIR / 'config').resolve()
-LOG_FILE = (BASE_DIR / 'log' / 'install' / 'service_install.log').resolve()
-os.makedirs(LOG_FILE.parent, exist_ok=True)
+CONFIG_DIR = BW_DIR / 'config'
+LOG_DIR = BW_DIR / 'log' / 'install'
+LOG_FILE = LOG_DIR / 'service_install.log'
 
-# === initialize colorama ===
-colorama_init(autoreset=True)
 
-#  === language management (default german)===
+# Get the actual user (sudo or current) - ONCE
+def _get_actual_user():
+    """Get the user who ran sudo, or current user."""
+    user = os.environ.get('SUDO_USER') or os.getenv('USER', 'root')
+    try:
+        result = subprocess.run(['id', '-gn', user], capture_output=True, text=True, timeout=5, check=True)
+        group = result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        group = 'root'
+    return user, group
+
+
+ACTUAL_USER, ACTUAL_GROUP = _get_actual_user()
+
+# Create log directory if it doesn't exist
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# === LANGUAGE MANAGEMENT ===
 _lang = 'de'
 
 
@@ -48,109 +62,126 @@ def set_lang(lang):
     _lang = lang
 
 
-#  === text-dictionary ===
+# === TEXT DICTIONARY ===
 TEXT = {
     "de": {
         "script_title": "🛠️ BOSWatch Service Manager",
-        "mode_dry": "DRY-RUN (nur Vorschau)",
-        "mode_live": "LIVE",
-        "no_yaml": "❌ Keine .yaml-Dateien im config-Verzeichnis gefunden.",
-        "found_yaml": "🔍 Gefundene YAML-Dateien: {}",
-        "action_prompt": "\nWas möchtest du tun? (i=installieren, r=entfernen, e=beenden): ",
-        "edited_prompt": "Wurden die YAML-Dateien korrekt bearbeitet? (y/n): ",
-        "edit_abort": "⚠️ Bitte YAML-Dateien zuerst bearbeiten. Vorgang abgebrochen.",
-        "install_confirm": "Service für '{}' installieren? (y/n): ",
-        "skip_invalid_yaml": "⏭ Überspringe fehlerhafte YAML: {}",
-        "install_done": "✅ Installation abgeschlossen. Services installiert: {}, übersprungen: {}",
-        "invalid_input": "Ungültige Eingabe. Erlaubt sind: {}",
+        "mode_dry": "🧪 DRY-RUN (nur Vorschau)",
+        "mode_live": "🚀 LIVE MODE",
+        "no_yaml": "❌ Keine . yaml-Dateien im config-Verzeichnis gefunden.",
+        "found_yaml": "🔍 Gefundene YAML-Dateien:  {}",
+        "action_prompt": "\nWas möchtest du tun?\n  [i] installieren\n  [r] entfernen\n  [e] beenden\n→ ",
+        "edited_prompt": "Wurden die YAML-Dateien korrekt bearbeitet?  (y/n): ",
+        "edit_abort": "⚠️  Bitte YAML-Dateien zuerst bearbeiten.  Vorgang abgebrochen.",
+        "install_confirm": "Service für '{}' installieren?  (y/n): ",
+        "skip_invalid_yaml": "⏭️  Überspringe fehlerhafte YAML:  {}",
+        "install_done": "✅ Installation abgeschlossen.\n   Services installiert:  {}\n   Services übersprungen: {}",
+        "invalid_input": "❌ Ungültige Eingabe. Erlaubt sind: {}",
         "no_services": "Keine bw3-Services gefunden.",
-        "available_services": "\nVerfügbare bw3-Services:",
-        "remove_prompt": "Was soll deinstalliert werden? ",
-        "invalid_choice": "Ungültige Auswahl.",
+        "available_services": "\n📋 Verfügbare bw3-Services:",
+        "remove_prompt": "❓ Was soll deinstalliert werden?\n→ ",
+        "invalid_choice": "❌ Ungültige Auswahl.",
         "not_root": "🛑 Dieses Skript muss mit Root-Rechten ausgeführt werden (sudo).",
         "help_dry_run": "Nur anzeigen, nicht ausführen",
         "help_verbose": "Ausführliche Ausgabe",
         "help_quiet": "Weniger Ausgabe",
         "help_lang": "Sprache für alle Ausgaben [de/en] (Standard: de)",
-        "creating_service_file": "📄 Erstelle Service-Datei für {} → {}",
-        "removing_service": "\n🗑 Entferne Service: {}",
-        "service_deleted": "{} gelöscht.",
-        "service_not_found": "{} nicht gefunden oder im Dry-Run-Modus.",
-        "yaml_error": "⚠ Fehler in YAML {}: {}",
-        "yaml_read_error": "⚠ Fehler beim Lesen der YAML-Datei {}: {}",
-        "unknown_yaml_type": "⚠ YAML-Typ für {} nicht erkannt. Service wird übersprungen.",
-        "verify_warn": "⚠ Warnung bei systemd-analyze verify:\n{}",
-        "verify_ok": "{} erfolgreich verifiziert.",
-        "install_skipped": "⏭ Installation für '{}' übersprungen",
-        "file_write_error": "⚠ Fehler beim Schreiben der Datei {}: {}",
+        "creating_service_file": "📄 Erstelle Service-Datei:  {} → {}",
+        "removing_service": "🗑️  Entferne Service: {}",
+        "service_deleted": "✅ {} gelöscht.",
+        "service_not_found": "⚠️  {} nicht gefunden oder im Dry-Run-Modus.",
+        "yaml_error": "⚠️  Fehler in YAML {}: {}",
+        "unknown_yaml_type": "⚠️  YAML-Typ für {} nicht erkannt.  Service wird übersprungen.",
+        "verify_error": "⚠️  Fehler bei systemd-analyze verify für {}: {}",
+        "verify_warn": "⚠️  Warnung bei systemd-analyze verify:\n{}",
+        "verify_ok": "✅ {} erfolgreich verifiziert.",
+        "install_skipped": "⏭️  Installation für '{}' übersprungen",
+        "file_write_error": "⚠️  Fehler beim Schreiben der Datei {}: {}",
         "all": "[a] Alle deinstallieren",
         "exit": "[e] Beenden",
-        "service_active": "✅ Service {0} läuft erfolgreich.",
-        "service_inactive": "⚠  Service {0} ist **nicht aktiv** – bitte prüfen.",
-        "dryrun_status_check": "🧪 [Dry-Run] Service-Status von {0} würde jetzt geprüft.",
-        "max_attempts_exceeded": "❌ Maximale Anzahl an Eingabeversuchen überschritten. Das Menü wird beendet.",
-        "user_interrupt": "\nAbbruch durch Benutzer.",
-        "unhandled_error": "Unbehandelter Fehler: {}",
+        "service_active": "✅ Service {} läuft erfolgreich.",
+        "service_inactive": "⚠️  Service {} ist **nicht aktiv** – bitte prüfen.",
+        "service_status_timeout": "⚠️  Timeout beim Prüfen des Service-Status: {}",
+        "dryrun_status_check": "🧪 [Dry-Run] Service-Status von {} würde jetzt geprüft.",
+        "max_attempts_exceeded": "❌ Maximale Anzahl an Eingabeversuchen überschritten.",
+        "user_interrupt": "\n⚪ Abbruch durch Benutzer.",
+        "unhandled_error": "❌ Unbehandelter Fehler: {}",
         "max_retries_skip": "Maximale Anzahl Eingabeversuche überschritten. Überspringe Service.",
         "max_retries_exit": "Maximale Anzahl Eingabeversuche überschritten. Beende Programm.",
-        "verify_timeout": "⚠ Timeout bei systemd-analyze verify für: {}",
-        "status_timeout": "⚠ Timeout beim Prüfen des Service-Status: {}"
-
+        "verify_timeout": "⚠️  Timeout bei systemd-analyze verify für:  {}",
+        "config_dir_missing": "❌ Config-Verzeichnis nicht gefunden: {}",
+        "run_as_user": "👤 Services werden als User '{}' ausgeführt"
     },
     "en": {
         "script_title": "🛠️ BOSWatch Service Manager",
-        "mode_dry": "DRY-RUN (preview only)",
-        "mode_live": "LIVE",
+        "mode_dry": "🧪 DRY-RUN (preview only)",
+        "mode_live": "🚀 LIVE MODE",
         "no_yaml": "❌ No .yaml files found in config directory.",
         "found_yaml": "🔍 YAML files found: {}",
-        "action_prompt": "\nWhat would you like to do? (i=install, r=remove, e=exit): ",
+        "action_prompt": "\nWhat would you like to do?\n  [i] install\n  [r] remove\n  [e] exit\n→ ",
         "edited_prompt": "Have the YAML files been edited correctly? (y/n): ",
-        "edit_abort": "⚠ Please edit the YAML files first. Aborting.",
+        "edit_abort": "⚠️  Please edit YAML files first. Aborting.",
         "install_confirm": "Install service for '{}' ? (y/n): ",
-        "skip_invalid_yaml": "⏭ Skipping invalid YAML: {}",
-        "install_done": "✅ Installation complete. Services installed: {}, skipped: {}",
-        "invalid_input": "Invalid input. Allowed: {}",
+        "skip_invalid_yaml": "⏭️  Skipping invalid YAML: {}",
+        "install_done": "✅ Installation complete.\n   Services installed: {}\n   Services skipped: {}",
+        "invalid_input": "❌ Invalid input. Allowed: {}",
         "no_services": "No bw3 services found.",
-        "available_services": "\nAvailable bw3 services:",
-        "remove_prompt": "What should be removed? ",
-        "invalid_choice": "Invalid choice.",
+        "available_services": "\n📋 Available bw3 services:",
+        "remove_prompt": "❓ What should be removed?\n→ ",
+        "invalid_choice": "❌ Invalid choice.",
         "not_root": "🛑 This script must be run as root (sudo).",
         "help_dry_run": "Show actions only, do not execute",
         "help_verbose": "Show detailed output",
         "help_quiet": "Reduce output verbosity",
         "help_lang": "Language for all output [de/en] (default: de)",
-        "creating_service_file": "📄 Creating service file for {} → {}",
-        "removing_service": "\n🗑 Removing service: {}",
-        "service_deleted": "{} deleted.",
-        "service_not_found": "{} not found or in dry-run mode.",
-        "yaml_error": "⚠ YAML error in {}: {}",
-        "yaml_read_error": "⚠ Error reading YAML file {}: {}",
-        "unknown_yaml_type": "⚠ Unknown YAML type for {}. Skipping service.",
-        "verify_warn": "⚠ Warning in systemd-analyze verify:\n{}",
-        "verify_ok": "{} verified successfully.",
-        "install_skipped": "⏭ Installation skipped for '{}'",
-        "file_write_error": "⚠ Error writing file {}: {}",
+        "creating_service_file": "📄 Creating service file: {} → {}",
+        "removing_service": "🗑️  Removing service: {}",
+        "service_deleted": "✅ {} deleted.",
+        "service_not_found": "⚠️  {} not found or in dry-run mode.",
+        "yaml_error": "⚠️  YAML error in {}: {}",
+        "unknown_yaml_type": "⚠️  Unknown YAML type for {}.  Skipping service.",
+        "verify_error": "⚠️  Error systemd-analyze verify for {}: {}",
+        "verify_warn": "⚠️  Warning in systemd-analyze verify:\n{}",
+        "verify_ok": "✅ {} verified successfully.",
+        "install_skipped": "⏭️  Installation skipped for '{}'",
+        "file_write_error": "⚠️  Error writing file {}: {}",
         "all": "[a] Remove all",
         "exit": "[e] Exit",
-        "service_active": "✅ Service {0} is running successfully.",
-        "service_inactive": "⚠ Service {0} is **not active** – please check.",
-        "dryrun_status_check": "🧪 [Dry-Run] Service status of {0} would be checked now.",
-        "max_attempts_exceeded": "❌ Maximum number of input attempts exceeded. Exiting menu.",
-        "user_interrupt": "\nInterrupted by user.",
-        "unhandled_error": "Unhandled error: {}",
+        "service_active": "✅ Service {} is running successfully.",
+        "service_inactive": "⚠️  Service {} is **not active** – please check.",
+        "service_status_timeout": "⚠️  Timeout while checking service status: {}",
+        "dryrun_status_check": "🧪 [Dry-Run] Service status of {} would be checked now.",
+        "max_attempts_exceeded": "❌ Maximum number of input attempts exceeded.",
+        "user_interrupt": "\n⚪ Interrupted by user.",
+        "unhandled_error": "❌ Unhandled error: {}",
         "max_retries_skip": "Maximum input attempts exceeded. Skipping service.",
-        "max_retries_exit": "Maximum input attempts exceeded. Exiting program.",
-        "verify_timeout": "⚠ Timeout during systemd-analyze verify for: {}",
-        "status_timeout": "⚠ Timeout while checking service status: {}"
+        "max_retries_exit": "Maximum input attempts exceeded.  Exiting program.",
+        "verify_timeout": "⚠️  Timeout during systemd-analyze verify for: {}",
+        "config_dir_missing": "❌ Config directory not found: {}",
+        "run_as_user": "👤 Services will run as user '{}'"
     }
 }
 
+# === COLORAMA SETUP ===
+try:
+    from colorama import init, Fore, Style
+    init(autoreset=True)
+except ImportError:
+    class DummyStyle:
+        RESET_ALL = ""
+        BRIGHT = ""
 
-# === logging Setup ===
+    class DummyFore:
+        RED = GREEN = YELLOW = BLUE = CYAN = MAGENTA = WHITE = RESET = ""
+
+    Fore = DummyFore()
+    Style = DummyStyle()
+
+# === LOGGING SETUP ===
+
+
 def setup_logging(verbose=False, quiet=False):
-    r"""
-    Setup logging to file and console with colorized output.
-    """
+    """Setup logging to file and console with colorized output."""
     log_level = logging.INFO
     if quiet:
         log_level = logging.WARNING
@@ -159,11 +190,12 @@ def setup_logging(verbose=False, quiet=False):
 
     logger = logging.getLogger()
     logger.setLevel(log_level)
+    logger.handlers.clear()  # Remove existing handlers
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-    # File Handler (plain)
-    fh = logging.FileHandler(LOG_FILE)
+    # File Handler
+    fh = logging.FileHandler(LOG_FILE, encoding='utf-8')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
@@ -186,23 +218,17 @@ def setup_logging(verbose=False, quiet=False):
     ch.setFormatter(ColorFormatter('%(levelname)s: %(message)s'))
     logger.addHandler(ch)
 
-    return logger
+# === HELPER FUNCTIONS ===
 
 
-# === Helpers ===
 def t(key):
-    r"""
-    Translation helper: returns the localized string for the given key.
-    """
+    """Translation helper."""
     lang = get_lang()
     return TEXT.get(lang, TEXT['de']).get(key, key)
 
 
 def get_user_input(prompt, valid_inputs, max_attempts=3):
-    r"""
-    Prompt user for input until a valid input from valid_inputs is entered or max_attempts exceeded.
-    Raises RuntimeError on failure.
-    """
+    """Prompt user for input."""
     attempts = 0
     while attempts < max_attempts:
         value = input(prompt).strip().lower()
@@ -214,129 +240,151 @@ def get_user_input(prompt, valid_inputs, max_attempts=3):
 
 
 def list_yaml_files():
-    r"""
-    Returns a list of .yaml or .yml files in the config directory.
-    """
+    """Returns a list of .yaml or .yml files in config directory."""
+    if not CONFIG_DIR.exists():
+        logging.error(t("config_dir_missing").format(CONFIG_DIR))
+        return []
     return sorted([f.name for f in CONFIG_DIR.glob("*.y*ml")])
 
 
 def test_yaml_file(file_path):
-    r"""
-    Tests if YAML file can be loaded without error.
-    """
+    """Tests if YAML file can be loaded without error."""
     try:
-        content = file_path.read_text(encoding='utf-8')
-        yaml.safe_load(content)
+        with open(file_path, 'r', encoding='utf-8') as f:
+            yaml.safe_load(f)
         return True
+    except yaml.YAMLError as e:
+        logging.error(t("yaml_error").format(file_path.name, str(e)))
+        return False
     except Exception as e:
-        logging.error(t("yaml_error").format(file_path, e))
+        logging.error(t("yaml_error").format(file_path.name, str(e)))
         return False
 
 
 def detect_yaml_type(file_path):
-    r"""
-    Detects if YAML config is 'client' or 'server' type.
-    """
+    """Detects if YAML config is 'client' or 'server' type."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
+
+        # Prüfe ob data ein Dictionary ist
+        if not isinstance(data, dict):
+            logging.error(t("yaml_error").format(file_path.name, "YAML is not a dictionary"))
+            return None
+
         if 'client' in data:
             return 'client'
         elif 'server' in data:
             return 'server'
         else:
-            logging.error(t("unknown_yaml_type").format(os.path.basename(file_path)))
+            logging.error(t("unknown_yaml_type").format(file_path.name))
             return None
     except Exception as e:
-        logging.error(t("yaml_read_error").format(file_path, e))
+        logging.error(t("yaml_error").format(file_path.name, str(e)))
         return None
 
 
 def execute(command, dry_run=False):
-    r"""
-    Executes shell command unless dry_run is True.
-    """
-    logging.debug(f"→ {command}")
-    if not dry_run:
-        subprocess.run(command, shell=True, check=False)
+    """Executes shell command unless dry_run is True."""
+    cmd_str = " ".join(command) if isinstance(command, list) else command
+    logging.debug("$ %s", cmd_str)
+
+    if dry_run:
+        return 0
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        logging.warning("Command failed: %s", result.stderr.strip())
+
+    return result.returncode
 
 
 def verify_service(service_path):
-    r"""
-    Runs 'systemd-analyze verify' on the service file and logs warnings/errors.
-    """
+    """Runs 'systemd-analyze verify' on the service file."""
     try:
         result = subprocess.run(
-            ['systemd-analyze', 'verify', service_path],
+            ['systemd-analyze', 'verify', str(service_path)],
             capture_output=True,
             text=True,
             timeout=10
         )
-        if result.returncode != 0 or result.stderr:
-            logging.warning(t("verify_warn").format(result.stderr.strip()))
+        if result.returncode != 0:
+            if result.stderr:
+                logging.warning(t("verify_warn").format(result.stderr.strip()))
         else:
-            logging.debug(t("verify_ok").format(os.path.basename(service_path)))
+            logging.info(t("verify_ok").format(service_path.name))
     except subprocess.TimeoutExpired:
-        logging.warning(t("verify_timeout").format(os.path.basename(service_path)))
+        logging.warning(t("verify_timeout").format(service_path.name))
     except Exception as e:
-        logging.error(t("yaml_error").format(service_path, e))
+        logging.error(t("verify_error").format(service_path.name, str(e)))
+
+# === SERVICE INSTALLATION ===
 
 
 def install_service(yaml_file, dry_run=False):
-    r"""
-    Creates and installs systemd service based on YAML config.
-    """
+    """Creates and installs systemd service based on YAML config."""
     yaml_path = CONFIG_DIR / yaml_file
     yaml_type = detect_yaml_type(yaml_path)
-    if yaml_type == 'server':
-        is_server = True
-    elif yaml_type == 'client':
-        is_server = False
-    else:
+
+    if yaml_type not in ('client', 'server'):
         logging.error(t("unknown_yaml_type").format(yaml_file))
         return
 
-    service_name = f"bw3_{Path(yaml_file).stem}.service"
+    service_name = f"bw3_{yaml_path.stem}.service"
     service_path = SERVICE_DIR / service_name
 
+    # Service configuration per type
+    is_server = (yaml_type == 'server')
+
+    # Build service file content cleanly (no empty lines hack)
+    unit_section = [
+        "[Unit]",
+        f"Description={'BOSWatch Server' if is_server else 'BOSWatch Client'}",
+        f"After={'network-online.target' if is_server else 'network.target'}",
+    ]
     if is_server:
-        exec_line = f"{BW_DIR}/venv/bin/python3 {BW_DIR}/bw_server.py -c {yaml_file}"
-        description = "BOSWatch Server"
-        after = "network-online.target"
-        wants = "Wants=network-online.target"
-    else:
-        exec_line = f"{BW_DIR}/venv/bin/python3 {BW_DIR}/bw_client.py -c {yaml_file}"
-        description = "BOSWatch Client"
-        after = "network.target"
-        wants = ""
+        unit_section.append("Wants=network-online.target")
 
-    service_content = f"""[Unit]
-Description={description}
-After={after}
-{wants}
+    service_section = [
+        "[Service]",
+        "Type=simple",
+        f"User={ACTUAL_USER}",
+        f"Group={ACTUAL_GROUP}",
+        f"WorkingDirectory={BW_DIR}",
+        f"ExecStart={BW_VENV} {BW_DIR}/bw_{'server' if is_server else 'client'}.py -c {CONFIG_DIR}/{yaml_file}",
+        "Restart=on-failure",
+        "RestartSec=10s",
+        "StandardOutput=journal",
+        "StandardError=journal",
+    ]
 
-[Service]
-Type=simple
-WorkingDirectory={BW_DIR}
-ExecStart={exec_line}
-Restart=on-abort
+    install_section = [
+        "[Install]",
+        "WantedBy=multi-user.target",
+    ]
 
-[Install]
-WantedBy=multi-user.target
-"""
+    service_content = '\n'.join(unit_section + [''] + service_section + [''] + install_section) + '\n'
+
     logging.info(t("creating_service_file").format(yaml_file, service_name))
 
     if not dry_run:
         try:
-            service_path.write_text(service_content, encoding='utf-8')
-            verify_service(service_path)
+            with open(service_path, 'w', encoding='utf-8') as f:
+                f.write(service_content)
+            logging.debug(f"Service file created: {service_path}")
         except IOError as e:
-            logging.error(t("file_write_error").format(service_path, e))
+            logging.error(t("file_write_error").format(service_path, str(e)))
             return
+        verify_service(service_path)
 
-    execute("systemctl daemon-reload", dry_run=dry_run)
-    execute(f"systemctl enable {service_name}", dry_run=dry_run)
-    execute(f"systemctl start {service_name}", dry_run=dry_run)
+    execute(["systemctl", "daemon-reload"], dry_run=dry_run)
+    execute(["systemctl", "enable", service_name], dry_run=dry_run)
+    execute(["systemctl", "start", service_name], dry_run=dry_run)
 
     if not dry_run:
         try:
@@ -349,18 +397,18 @@ WantedBy=multi-user.target
         except subprocess.CalledProcessError:
             logging.warning(t("service_inactive").format(service_name))
         except subprocess.TimeoutExpired:
-            logging.warning(t("status_timeout").format(service_name))
+            logging.warning(t("service_status_timeout").format(service_name))
     else:
         logging.info(t("dryrun_status_check").format(service_name))
 
+# === SERVICE REMOVAL ===
+
 
 def remove_service(service_name, dry_run=False):
-    r"""
-    Stops, disables and removes the given systemd service.
-    """
+    """Stops, disables and removes the given systemd service."""
     logging.warning(t("removing_service").format(service_name))
-    execute(f"systemctl stop {service_name}", dry_run=dry_run)
-    execute(f"systemctl disable {service_name}", dry_run=dry_run)
+    execute(["systemctl", "stop", service_name], dry_run=dry_run)
+    execute(["systemctl", "disable", service_name], dry_run=dry_run)
 
     service_path = SERVICE_DIR / service_name
     if not dry_run and service_path.exists():
@@ -368,17 +416,15 @@ def remove_service(service_name, dry_run=False):
             service_path.unlink()
             logging.info(t("service_deleted").format(service_name))
         except Exception as e:
-            logging.error(t("file_write_error").format(service_path, e))
+            logging.error(t("file_write_error").format(service_path, str(e)))
     else:
         logging.warning(t("service_not_found").format(service_name))
 
-    execute("systemctl daemon-reload", dry_run=dry_run)
+    execute(["systemctl", "daemon-reload"], dry_run=dry_run)
 
 
 def remove_menu(dry_run=False):
-    r"""
-    Interactive menu to remove services.
-    """
+    """Interactive menu to remove services."""
     while True:
         services = sorted([
             f for f in os.listdir(SERVICE_DIR)
@@ -389,14 +435,26 @@ def remove_menu(dry_run=False):
             print(Fore.YELLOW + t("no_services") + Style.RESET_ALL)
             return
 
-        print(Fore.CYAN + "\n" + t("available_services") + Style.RESET_ALL)
+        print(Fore. CYAN + t("available_services") + Style.RESET_ALL)
         for i, s in enumerate(services):
-            print(f" [{i}] {s}")
+            try:
+                if dry_run:
+                    status = "🧪"
+                else:
+                    is_active = subprocess.run(
+                        ["systemctl", "is-active", "--quiet", s],
+                        capture_output=True,
+                        timeout=3
+                    ).returncode == 0
+                    status = "✅" if is_active else "⚫"
+            except (subprocess.TimeoutExpired, Exception):
+                status = "❓"  # Unknown status
+            print(f" [{i}] {status} {s}")
         print(" " + t("all"))
         print(" " + t("exit"))
 
         try:
-            auswahl = get_user_input(
+            choice = get_user_input(
                 t("remove_prompt"),
                 ['e', 'a'] + [str(i) for i in range(len(services))]
             )
@@ -404,30 +462,27 @@ def remove_menu(dry_run=False):
             logging.error(t("max_attempts_exceeded"))
             break
 
-        if auswahl == 'e':
+        if choice == 'e':
             break
-        elif auswahl == 'a':
+        elif choice == 'a':
             for s in services:
                 remove_service(s, dry_run=dry_run)
-            # directly continue to the next loop (updated list!)
             continue
         else:
-            remove_service(services[int(auswahl)], dry_run=dry_run)
-            # also directly continue to the next loop (updated list!)
+            remove_service(services[int(choice)], dry_run=dry_run)
             continue
+
+# === MAIN PROGRAM ===
 
 
 def init_language():
-    r"""
-    Parses --lang/-l argument early to set language before other parsing.
-    """
+    """Parses --lang/-l argument early."""
     lang_parser = argparse.ArgumentParser(add_help=False)
     lang_parser.add_argument(
         '--lang', '-l',
         choices=['de', 'en'],
         default='de',
-        metavar='LANG',
-        help=TEXT["en"]["help_lang"]
+        metavar='LANG'
     )
     lang_args, remaining_argv = lang_parser.parse_known_args()
     set_lang(lang_args.lang)
@@ -435,12 +490,15 @@ def init_language():
 
 
 def main(dry_run=False):
-    r"""
-    main program: install or remove service.
-    """
+    """Main program:  install or remove service."""
     print(Fore.GREEN + Style.BRIGHT + t("script_title") + Style.RESET_ALL)
-    print(t('mode_dry') if dry_run else t('mode_live'))
+    print(Fore.CYAN + (t('mode_dry') if dry_run else t('mode_live')) + Style.RESET_ALL)
+    print(Fore.MAGENTA + t("run_as_user").format(ACTUAL_USER) + Style.RESET_ALL)
     print()
+
+    if not CONFIG_DIR.exists():
+        print(Fore.RED + t("config_dir_missing").format(CONFIG_DIR) + Style.RESET_ALL)
+        sys.exit(1)
 
     yaml_files = list_yaml_files()
     if not yaml_files:
@@ -512,8 +570,8 @@ if __name__ == "__main__":
         parents=[lang_parser]
     )
     parser.add_argument('--dry-run', action='store_true', help=t("help_dry_run"))
-    parser.add_argument('--verbose', action='store_true', help=t("help_verbose"))
-    parser.add_argument('--quiet', action='store_true', help=t("help_quiet"))
+    parser.add_argument('--verbose', '-v', action='store_true', help=t("help_verbose"))
+    parser.add_argument('--quiet', '-q', action='store_true', help=t("help_quiet"))
 
     args = parser.parse_args(remaining_argv)
 
@@ -529,5 +587,5 @@ if __name__ == "__main__":
         print(t("user_interrupt"))
         sys.exit(1)
     except Exception as e:
-        logging.critical(t("unhandled_error").format(e))
+        logging.critical(t("unhandled_error").format(str(e)))
         sys.exit(1)
