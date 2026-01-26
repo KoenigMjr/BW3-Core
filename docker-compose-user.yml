@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  server:
+    image: ghcr.io/koenigmjr/bw3-core-server:latest # Zieht das fertige Image!
+    container_name: bw3_server
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/opt/boswatch/config
+      - ./log:/opt/boswatch/log
+
+  client:
+    image: ghcr.io/koenigmjr/bw3-core-client:latest # Zieht das fertige Image!
+    container_name: bw3_client
+    restart: always
+    privileged: true
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+    volumes:
+      - ./config:/opt/boswatch/config
+      - ./log:/opt/boswatch/log
