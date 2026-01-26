@@ -1,45 +1,47 @@
-FROM alpine:latest AS build-base
-RUN apk add --no-cache git make cmake g++ libusb-dev libpulse
+# === STAGE 1: Builder Basis ===
+FROM alpine:latest AS builder
+RUN apk add --no-cache git make cmake g++ libusb-dev libpulse-dev qt6-qtbase-dev
 
-FROM build-base AS rtl_fm
+# === STAGE 2: RTL-SDR bauen ===
+FROM builder AS rtl_fm_build
 RUN git clone --depth 1 https://gitea.osmocom.org/sdr/rtl-sdr.git /opt/rtl_sdr
 WORKDIR /opt/rtl_sdr/build
-RUN cmake .. && make
-RUN make install && ls -l /usr/local/bin/rtl_fm
+RUN cmake -DINSTALL_UDEV_RULES=ON .. && make -j$(nproc) && make install
 
-FROM build-base AS multimon
+# === STAGE 3: Multimon-NG bauen ===
+FROM builder AS multimon_build
 RUN git clone --depth 1 https://github.com/EliasOenal/multimon-ng.git /opt/multimon
 WORKDIR /opt/multimon/build
-RUN cmake .. && make
+RUN cmake .. && make -j$(nproc) && make install
 
-FROM alpine:latest AS boswatch
-ARG BW_VERSION=develop
-RUN apk add git && \
-    git clone --depth 1 --branch ${BW_VERSION} https://github.com/BOSWatch/BW3-Core.git /opt/boswatch
-
-
-FROM python:alpine AS client
-LABEL org.opencontainers.image.authors="info@schroll-it.de,jan@speller.biz"
-LABEL org.opencontainers.image.source=https://github.com/janspeller/BW3-Core
-
-#           for RTL    for MM
-RUN apk add libusb-dev libpulse
-RUN pip3 install pyyaml
-
-COPY --from=boswatch /opt/boswatch/ /opt/boswatch/
-COPY --from=multimon /opt/multimon/build/multimon-ng /opt/multimon/multimon-ng
-COPY --from=rtl_fm /usr/local/bin/rtl_fm /usr/local/bin/rtl_fm
-COPY --from=rtl_fm /usr/local/lib/librtlsdr.so.0 /usr/local/lib/librtlsdr.so.0
-
+# === STAGE 4: Gemeinsame Python-Basis ===
+# Hier installieren wir die Requirements einmal für beide
+FROM python:3.11-alpine AS python-base
 WORKDIR /opt/boswatch
-CMD python3 /opt/boswatch/bw_client.py -c client.yaml
+RUN apk add --no-cache libusb libpulse sox
+COPY requirements-runtime.txt .
+RUN pip install --no-cache-dir -r requirements-runtime.txt
+# Den Code kopieren wir jetzt erst hier rein
+COPY . .
 
-FROM python:alpine AS server
-LABEL org.opencontainers.image.authors="info@schroll-it.de,jan@speller.biz"
-LABEL org.opencontainers.image.source=https://github.com/janspeller/BW3-Core
+# === STAGE 5: Finaler Client ===
+FROM python-base AS client
+LABEL org.opencontainers.image.authors="info@schroll-it.de"
+# Binaries vom Builder rüberholen
+COPY --from=rtl_fm_build /usr/local/bin/rtl_* /usr/local/bin/
+COPY --from=rtl_fm_build /usr/local/lib/librtlsdr.so* /usr/local/lib/
+COPY --from=multimon_build /usr/local/bin/multimon-ng /usr/local/bin/
 
-RUN pip3 install pyyaml
-COPY --from=boswatch /opt/boswatch/ /opt/boswatch/
-WORKDIR /opt/boswatch
-CMD python3 /opt/boswatch/bw_server.py -c server.yaml
+# Verlinkung der Libraries aktualisieren
+RUN ldconfig /usr/local/lib || true
+
+ENTRYPOINT ["python3", "bw_client.py"]
+# Standard-Argument, falls nichts in docker-compose steht:
+CMD ["-c", "config/client.yaml"]
+
+# === STAGE 6: Finaler Server ===
+FROM python-base AS server
+LABEL org.opencontainers.image.authors="info@schroll-it.de"
 EXPOSE 8080
+ENTRYPOINT ["python3", "bw_server.py"]
+CMD ["-c", "config/server.yaml"]

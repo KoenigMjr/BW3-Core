@@ -1,23 +1,34 @@
-version: '3'
+version: '3.8'
+
 services:
-  server:
+  bw3-server:
+    build:
+      context: .
+      target: server
+    container_name: bw3_server
+    restart: always
     environment:
-      - "TZ=Europe/Berlin"
-    image: ghcr.io/koenigmjr/bw3-core-server:latest
+      - TZ=Europe/Berlin
     ports:
       - "8080:8080"
     volumes:
       - ./config:/opt/boswatch/config
       - ./log:/opt/boswatch/log
-  client:
+
+  bw3-client:
+    build:
+      context: .
+      target: client
+    container_name: bw3_client
+    restart: always
+    privileged: true # WICHTIG für direkten SDR/USB-Hardwarezugriff
     environment:
-      - "TZ=Europe/Berlin"
-    image: ghcr.io/koenigmjr/bw3-core-client:latest
-#    ports:
-#     - "8080:8080"
+      - TZ=Europe/Berlin
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
     volumes:
       - ./config:/opt/boswatch/config
       - ./log:/opt/boswatch/log
-    devices:
-      - "/dev/bus/usb"
-
+    command: ["-c", "config/client.yaml"]
+    depends_on:
+      - bw3-server
