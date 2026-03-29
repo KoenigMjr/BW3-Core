@@ -10,3 +10,4 @@ aiohttp # HTTP, Divera
 mysql-connector-python # MySQL
 geocoder # Geocoding
 colorama #>=0.4.6 Install_service.py
+websockets #==10.4
