@@ -37,15 +37,20 @@ class FmsDecoder:
         @param data: FMS for decoding
         @return BOSWatch FMS packet or None"""
         if "CRC correct" in data:
-            service = data[19]
-            country = data[36]
-            location = data[61:63]
-            vehicle = data[72:76]
-            status = data[84]
-            direction = data[101]
-            directionText = data[103:110]
-            tacticalInfo = data[114:117]
-            fms_id = service + country + location + vehicle + status + direction
+            try:
+                service = data[19]
+                country = data[36]
+                location = data[61:63]
+                vehicle = data[72:76]
+                status = data[84]
+                direction = data[101]
+                directionText = data[103:110]
+                tacticalInfo = data[114:117]
+                fms_id = service + country + location + vehicle + status + direction
+            except IndexError:
+                logging.warning("FMS: string too short to parse (got %d chars, need >= 117) - "
+                                "possible weak signal or corrupted frame | Data: %.200s", len(data), data)
+                return None
 
             if re.search("[0-9a-f]{8}[0-9a-f][01]", fms_id):
                 logging.debug("found valid FMS")
