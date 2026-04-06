@@ -10,8 +10,8 @@ r"""!
                      by Bastian Schroll
 
 @file:        server.py
-@date:        11.12.2017
-@author:      Bastian Schroll
+@date:        05.07.2026
+@author:      Bastian Schroll, Claus Schichl
 @description: Class implementation for a threaded TCP socket server
 """
 import logging
@@ -20,6 +20,7 @@ import socketserver
 import threading
 import time
 import select
+from boswatch.network.socketutils import recvall
 
 logging.debug("- %s loaded", __name__)
 
@@ -28,6 +29,14 @@ HEADERSIZE = 10
 
 class _ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     r"""!ThreadedTCPRequestHandler class for our TCPServer class."""
+
+    def _send_ack(self):
+        r"""!Sends a standardized protocol acknowledgment [ack] to the client"""
+        ack_msg = "[ack]"
+        # Build header, pad to 10 characters, and encode both cleanly to bytes
+        ack_header = str(len(ack_msg)).ljust(HEADERSIZE).encode("utf-8")
+        ack_payload = ack_msg.encode("utf-8")
+        self.request.sendall(ack_header + ack_payload)
 
     def handle(self):
         r"""!Handles the request from an single client in a own thread
@@ -46,33 +55,49 @@ class _ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 if not read:
                     continue  # nothing to read on the socket
 
-                header = self.request.recv(HEADERSIZE).decode("utf-8")
-                if not len(header):
-                    break  # empty data -> socked closed
-
-                try:
-                    length = int(header.strip())
-                except ValueError:
-                    logging.error("%s sent an invalid packet header (expected an integer length, got %r) - closing connection", req_name, header)
+                # --- 1. READING HEADER ---
+                # recvall() returns a decoded string or None
+                header = recvall(self.request, HEADERSIZE, fragment_timeout=10.0)
+                if not header:
+                    logging.warning("%s connection dropped or fragment timeout/decode error during header read.", req_name)
                     break
 
-                data = self.request.recv(length).decode("utf-8")
+                header_stripped = header.strip()
+                if not header_stripped.isdigit():
+                    logging.error("%s protocol desync: expected numeric header, got '%.20s'. Forcing disconnect.", req_name, header_stripped)
+                    break
 
-                if data == "<keep-alive>":
+                length = int(header_stripped)
+
+                # --- 2. READING PAYLOAD ---
+                # Renamed to 'payload' since it's already a string, not bytes
+                payload = recvall(self.request, length, fragment_timeout=10.0)
+                if not payload:
+                    logging.warning("%s connection dropped or fragment timeout/decode error during payload read.", req_name)
+                    break
+
+                # --- 3. KEEP-ALIVE HANDLING ---
+                if payload.strip() == "<keep-alive>":
+                    # ENABLE next line, if DEBUGGING (BUT CAUTION: logs every one (happens very often!))
+                    # logging.debug("%s received <keep-alive>, sending [ack]", req_name)
+                    self._send_ack()
                     continue
 
+                # --- 4. PROCESSING ALARM DATA ---
+                # Removed redundant .decode() calls
                 logging.debug("%s recv header: '%s'", req_name, header)
-                logging.debug("%s recv %d bytes:\n%s", req_name, len(data), data)
 
-                # add a new entry and the decoded data dict as an string in utf-8 and an timestamp
-                self.server.alarmQueue.put_nowait((self.client_address[0], data, time.time()))  # queue is threadsafe
+                # Accurate byte-length calculation for multi-byte UTF-8 characters
+                byte_length = len(payload.encode("utf-8"))
+                logging.debug("%s recv %d bytes:\n%s", req_name, byte_length, payload)
+
+                # add a new entry and the decoded data string and a timestamp
+                self.server.alarmQueue.put((self.client_address[0], payload, time.time()))
                 logging.debug("Add data to queue")
 
+                # --- 5. ACKNOWLEDGMENT ALARM ---
                 logging.debug("%s send: [ack]", req_name)
-
-                data = "[ack]".encode("utf-8")
-                header = str(len(data)).ljust(HEADERSIZE).encode("utf-8")
-                self.request.sendall(header + data)
+                self._send_ack()
 
         except socket.error as e:
             logging.error(e)
