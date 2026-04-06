@@ -10,12 +10,13 @@ r"""!
                      by Bastian Schroll
 
 @file:        packet.py
-@date:        06.01.2018
+@date:        12.04.2026
 @author:      Bastian Schroll
 @description: Class for a BOSWatch data packet
 """
 import logging
 import time
+import ast
 
 logging.debug("- %s loaded", __name__)
 
@@ -32,7 +33,11 @@ class Packet:
             self._packet = {"timestamp": time.time()}
         else:
             logging.debug("create bwPacket from string")
-            self._packet = eval(str(bwPacket.strip()))
+            try:
+                self._packet = ast.literal_eval(str(bwPacket).strip())
+            except (ValueError, SyntaxError) as e:
+                logging.error("Failed to parse bwPacket (Size: %d): %s | Data: %.1000s", len(str(bwPacket)), e, str(bwPacket).strip())
+                raise  # forward it so the caller can handle it
 
     def __str__(self):
         r"""!Return the intern _packet dict as string"""
