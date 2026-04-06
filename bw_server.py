@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        bw_server.py
-@date:        09.12.2017
+@date:        27.07.2026
 @author:      Bastian Schroll
 @description: BOSWatch server application
 """
@@ -46,10 +46,9 @@ logging.debug("Import BOSWatch modules")
 from boswatch.configYaml import ConfigYAML
 from boswatch.network.server import TCPServer
 from boswatch.packet import Packet
-from boswatch.utils import header
+from boswatch.utils import header, misc
 from boswatch.network.broadcast import BroadcastServer
 from boswatch.router.routerManager import RouterManager
-from boswatch.utils import misc
 
 header.logoToLog()
 header.infoToLog()
@@ -98,7 +97,14 @@ try:
 
                 logging.info("get data from %s (waited in queue %0.3f sec.)", data[0], time.time() - data[2])
                 logging.debug("%s packet(s) still waiting in queue", incomingQueue.qsize())
-                bwPacket = Packet((data[1]))
+
+                # NEW: securing creation of packet
+                try:
+                    bwPacket = Packet((data[1]))
+                except (ValueError, SyntaxError) as e:
+                    logging.error("Skipping malformed packet from %s: %s | Data: %.100s", data[0], e, data[1])
+                    incomingQueue.task_done()
+                    continue
 
                 bwPacket.set("clientIP", data[0])
                 misc.addServerDataToPacket(bwPacket, bwConfig)

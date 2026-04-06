@@ -10,13 +10,14 @@ r"""!
                      by Bastian Schroll
 
 @file:        client.py
-@date:        09.12.2017
+@date:        08.10.2026
 @author:      Bastian Schroll
 @description: Class implementation for a TCP socket client
 """
 import logging
 import socket
 import select
+from boswatch.network.socketutils import recvall
 
 logging.debug("- %s loaded", __name__)
 
@@ -56,12 +57,18 @@ class TCPClient:
 
         @return True or False"""
         try:
-            if self.isConnected:
-                self._sock.shutdown(socket.SHUT_RDWR)
+            # Check _sock directly instead of isConnected to avoid sending
+            # a keep-alive packet on a connection we are intentionally closing.
+            if self._sock:
+                try:
+                    self._sock.shutdown(socket.SHUT_RDWR)
+                except socket.error:
+                    pass  # socket may already be dead - safe to ignore
                 self._sock.close()
+                self._sock = None
                 logging.debug("disconnected")
                 return True
-            logging.warning("client always disconnected")
+            logging.warning("client already disconnected")
             return True
         except socket.error as e:
             logging.error(e)
@@ -93,12 +100,25 @@ class TCPClient:
             if not read:  # check if there is something to read
                 return False
 
-            header = self._sock.recv(HEADERSIZE).decode("utf-8")
-            if not len(header):  # check if there data
+            # recvall() guarantees reading exactly HEADERSIZE bytes even when
+            # the TCP stream delivers them in fragments (e.g. over VPN/WAN).
+            header = recvall(self._sock, HEADERSIZE)
+            if header is None:
                 return False
 
-            length = int(header.strip())
-            received = self._sock.recv(length).decode("utf-8")
+            # Guard against stream desync: header must be a plain integer string.
+            # A non-digit header means the stream is out of sync - close cleanly.
+            header_stripped = header.strip()
+            try:
+                length = int(header_stripped)
+            except ValueError:
+                logging.warning("invalid packet header received: '%s'", header_stripped)
+                return False
+
+            length = int(header_stripped)
+            received = recvall(self._sock, length)
+            if received is None:
+                return False
 
             logging.debug("recv header: '%s'", header)
             logging.debug("received %d bytes: %s", len(received), received)
@@ -109,19 +129,28 @@ class TCPClient:
 
     @property
     def isConnected(self):
-        r"""!Property of client connected state"""
+        r"""!Property of client connected state
+
+        Uses getpeername() to detect unconnected sockets and MSG_PEEK to detect
+        an incoming TCP FIN without consuming any bytes from the stream.
+
+        Note: intentionally does NOT send a keep-alive packet. Sending data here
+        caused TCP stream desynchronisation (Issue #55, Issue #155): the server
+        replied with [ack] but the client never read it, shifting all subsequent
+        reads by one frame."""
         try:
             if self._sock:
-                _, write, _ = select.select([], [self._sock], [], 0.1)
-                if write:
-                    data = "<keep-alive>".encode("utf-8")
-                    header = str(len(data)).ljust(HEADERSIZE).encode("utf-8")
-                    self._sock.sendall(header + data)
-                    return True
+                # Raises OSError when the socket has no peer (not connected).
+                self._sock.getpeername()
+                # Check both readability (incoming FIN) and writability (live connection).
+                read, write, _ = select.select([self._sock], [self._sock], [], 0.1)
+                if read:
+                    # A readable socket with no data means the server sent TCP FIN.
+                    # MSG_PEEK leaves the buffer untouched so receive() can still read normally.
+                    if not self._sock.recv(1, socket.MSG_PEEK):
+                        return False
+                return bool(write)
             return False
-        except socket.error as e:
-            if e.errno != 32:
-                logging.exception(e)
-            return False
-        except ValueError:
+        except (socket.error, ValueError) as e:
+            logging.warning("isConnected check failed (%s)", e)
             return False
