@@ -9,8 +9,8 @@ r"""!
                 German BOS Information Script
                      by Bastian Schroll
 
-@file:        zvei.py
-@date:        05.01.2018
+@file:        zveiDecoder.py
+@date:        10.06.2026
 @author:      Bastian Schroll
 @description: Decoder class for zvei
 """
@@ -37,6 +37,11 @@ class ZveiDecoder:
 
         @param data: ZVEI for decoding
         @return BOSWatch ZVEI packet or None"""
+        # NEW: checking minimum length before index-access
+        if len(data) < 12:
+            logging.warning("ZVEI data too short: %d chars", len(data))
+            return None
+
         if re.search("[0-9E]{5}", data[7:12]):
             logging.debug("found valid ZVEI")
 
