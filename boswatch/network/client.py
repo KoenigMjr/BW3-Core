@@ -10,13 +10,14 @@ r"""!
                      by Bastian Schroll
 
 @file:        client.py
-@date:        09.12.2017
+@date:        12.04.2026
 @author:      Bastian Schroll
 @description: Class implementation for a TCP socket client
 """
 import logging
 import socket
 import select
+from boswatch.network.socketutils import recvall
 
 logging.debug("- %s loaded", __name__)
 
@@ -93,12 +94,19 @@ class TCPClient:
             if not read:  # check if there is something to read
                 return False
 
-            header = self._sock.recv(HEADERSIZE).decode("utf-8")
-            if not len(header):  # check if there data
+            header = recvall(self._sock, HEADERSIZE)
+            if header is None:
                 return False
 
-            length = int(header.strip())
-            received = self._sock.recv(length).decode("utf-8")
+            header_stripped = header.strip()
+            if not header_stripped.isdigit():
+                logging.warning("Invalid header received: '%s'", header_stripped)
+                return False
+
+            length = int(header_stripped)
+            received = recvall(self._sock, length, fragment_timeout=5.0)
+            if received is None:
+                return False
 
             logging.debug("recv header: '%s'", header)
             logging.debug("received %d bytes: %s", len(received), received)
