@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        broadcast.py
-@date:        21.09.2018
+@date:        12.04.2026
 @author:      Bastian Schroll
 @description: UDP broadcast server and client class
 """
@@ -62,8 +62,13 @@ class BroadcastClient:
 
                 if payload.startswith("<BW3-Result>"):
                     logging.debug("received magic <BW3-Result> from: %s", address[0])
+                    parts = payload.split(";")
+                    # NEW: validating
+                    if len(parts) < 2 or not parts[1].strip().isdigit():
+                        logging.warning("Malformed broadcast response: '%s'", payload)
+                        continue
                     self._serverIP = address[0]
-                    self._serverPort = int(payload.split(";")[1])
+                    self._serverPort = int(parts[1].strip())
                     logging.info("got connection info from server: %s:%d", self._serverIP, self._serverPort)
                     return True
             except socket.timeout:  # nothing received - retry
