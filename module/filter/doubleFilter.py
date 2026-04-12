@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        doubleFilter.py
-@date:        09.07.2020
+@date:        12.04.2026
 @author:      Bastian Schroll, b-watch
 @description: Filter module for double packages
 """
@@ -67,25 +67,25 @@ class BoswatchModule(ModuleBase):
         pass
 
     def _check(self, bwPacket, filterFields):
-        self._filterLists[bwPacket.get("mode")].insert(0, bwPacket)
+        mode = bwPacket.get("mode")
+        current_time = time.time()
+        ignore_time = self.config.get("ignoreTime", default=10)
 
-        for listPacket in self._filterLists[bwPacket.get("mode")][1:]:  # [1:] skip first entry, thats the new one
+        self._filterLists[mode] = [
+            p for p in self._filterLists[mode]
+            if float(p.get("timestamp")) > (current_time - ignore_time)
+        ]
+
+        for listPacket in self._filterLists[mode]:
             if all(listPacket.get(x) == bwPacket.get(x) for x in filterFields):
-                logging.debug("found duplicate: %s", bwPacket.get("mode"))
+                logging.debug("found duplicate: %s", mode)
                 return False
-        # delete entries that are to old
-        counter = 0
-        for listPacket in self._filterLists[bwPacket.get("mode")][1:]:  # [1:] skip first entry, thats the new one
-            if float(listPacket.get("timestamp")) < (time.time() - self.config.get("ignoreTime", default=10)):
-                self._filterLists[bwPacket.get("mode")].remove(listPacket)
-                counter += 1
-        if counter:
-            logging.debug("%d old entry(s) removed", counter)
 
-        # delete last entry if list is to big
-        if len(self._filterLists[bwPacket.get("mode")]) > self.config.get("maxEntry", default=20):
+        self._filterLists[mode].insert(0, bwPacket)
+
+        if len(self._filterLists[mode]) > self.config.get("maxEntry", default=20):
             logging.debug("MaxEntry reached - delete oldest")
-            self._filterLists[bwPacket.get("mode")].pop()
+            self._filterLists[mode].pop()
 
         logging.debug("doubleFilter ok")
         return None
