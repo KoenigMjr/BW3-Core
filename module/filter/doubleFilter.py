@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        doubleFilter.py
-@date:        09.07.2020
+@date:        07.06.2026
 @author:      Bastian Schroll, b-watch
 @description: Filter module for double packages
 """
@@ -32,7 +32,7 @@ class BoswatchModule(ModuleBase):
         super().__init__(__name__, config)  # you can access the config class on 'self.config'
         self._filterLists = {}
         logging.debug("Configured ignoreTime: %d", self.config.get("ignoreTime", default=10))
-        logging.debug("Configured maxEntry: %d", self.config.get("maxEntry", default=10))
+        logging.debug("Configured maxEntry: %d", self.config.get("maxEntry", default=20))
 
     def onLoad(self):
         r"""!Called by import of the plugin
@@ -67,25 +67,28 @@ class BoswatchModule(ModuleBase):
         pass
 
     def _check(self, bwPacket, filterFields):
-        self._filterLists[bwPacket.get("mode")].insert(0, bwPacket)
+        mode = bwPacket.get("mode")
+        current_time = time.time()
+        ignore_time = self.config.get("ignoreTime", default=10)
 
-        for listPacket in self._filterLists[bwPacket.get("mode")][1:]:  # [1:] skip first entry, thats the new one
+        # 1. removing old pakets
+        for p in list(self._filterLists[mode]):
+            packet_time = float(p.get("timestamp", 0))
+            if packet_time < (current_time - ignore_time):
+                self._filterLists[mode].remove(p)
+
+        # 2. checking doubles
+        for listPacket in self._filterLists[mode]:
             if all(listPacket.get(x) == bwPacket.get(x) for x in filterFields):
-                logging.debug("found duplicate: %s", bwPacket.get("mode"))
+                logging.debug("found duplicate: %s", mode)
                 return False
-        # delete entries that are to old
-        counter = 0
-        for listPacket in self._filterLists[bwPacket.get("mode")][1:]:  # [1:] skip first entry, thats the new one
-            if float(listPacket.get("timestamp")) < (time.time() - self.config.get("ignoreTime", default=10)):
-                self._filterLists[bwPacket.get("mode")].remove(listPacket)
-                counter += 1
-        if counter:
-            logging.debug("%d old entry(s) removed", counter)
 
-        # delete last entry if list is to big
-        if len(self._filterLists[bwPacket.get("mode")]) > self.config.get("maxEntry", default=20):
+        # 3. adding paket to history
+        self._filterLists[mode].insert(0, bwPacket)
+
+        if len(self._filterLists[mode]) > self.config.get("maxEntry", default=20):
             logging.debug("MaxEntry reached - delete oldest")
-            self._filterLists[bwPacket.get("mode")].pop()
+            self._filterLists[mode].pop()
 
         logging.debug("doubleFilter ok")
         return None
