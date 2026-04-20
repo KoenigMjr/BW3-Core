@@ -1,0 +1,272 @@
+# -*- coding: utf-8 -*-
+#    ____  ____  ______       __      __       __       _____
+#   / __ )/ __ \/ ___/ |     / /___ _/ /______/ /_     |__  /
+#  / __  / / / /\__ \| | /| / / __  / __/ ___/ __ \     /_ <
+# / /_/ / /_/ /___/ /| |/ |/ / /_/ / /_/ /__/ / / /   ___/ /
+#/_____/\____//____/ |__/|__/\__,_/\__/\___/_/ /_/   /____/
+#                German BOS Information Script
+#                     by Bastian Schroll
+#@file:        translation.yaml
+#@date:        01.09.2026
+#@author:      Claus Schichl
+#@description: Main translation-file for install & manager
+
+de:
+  # Menü & Allgemein
+  welcome: "Willkommen beim BOSWatch3 Manager"
+  select_option: "Bitte wählen Sie eine Option:"
+  menu_install: "Vollständige Installation"
+  menu_update: "Auf Updates prüfen / Aktualisieren"
+  menu_service_manager: "Services (Dienste) verwalten"
+  menu_config: "Repository/Branch wechseln"
+  menu_exit: "Beenden"
+  done_success: "Aktion erfolgreich abgeschlossen!"
+  already_installed: "bereits installiert."
+  error_not_root: "❌ Bitte als root ausführen: sudo python3 install/manager.py"
+  menu_locked: "(Installation erforderlich)"
+  menu_not_installed: "⚠ Bitte zuerst eine vollständige Installation durchführen (Option 1)."
+  menu_dashboard_title: "Aktive Hintergrund-Dienste"
+  menu_dashboard_reason: "Grund"
+  menu_logs: "Service-Logs (Fehlersuche)"
+  log_select_prompt: "Wähle einen Dienst für die Log-Ansicht (0 für zurück): "
+  log_viewing: "--- Zeige die letzten 50 Zeilen für {} ---"
+  log_back_prompt: "\nDrücke Enter, um zum Menü zurückzukehren..."
+  log_none: "Keine Dienste installiert, für die Logs angezeigt werden könnten."
+  run_cmd_failed: "Befehl fehlgeschlagen: {0}\nDetails in: {1}"
+
+  # Neustart-Aufruf
+  reboot_ask: "Damit alle Änderungen (z.B. SDR-Blacklist) aktiv werden, wird ein Neustart empfohlen. Jetzt neu starten? [y/N]"
+  reboot_now: "Starte System neu."
+  reboot_skip: "Reboot übersprungen. Du bist zurück im Menü."
+
+  # Installation (install_routine)
+  installing_sys_deps: "Installiere System-Pakete (apt)..."
+  compiling_sdr: "Kompiliere rtl-sdr (SDR-Treiber)..."
+  compiling_multimon: "Kompiliere multimon-ng (Decoder)..."
+  blacklist_sdr: "Setze DVB-T Treiber auf Blacklist..."
+  blacklist_success: "Blacklist erfolgreich unter {} erstellt."
+  blacklist_error: "FEHLER: Konnte Blacklist nicht schreiben ({})."
+  blacklist_warning: "Hinweis: Das SDR funktioniert nach dem Reboot eventuell nicht korrekt, da der Standard-Treiber noch aktiv ist."
+  perm_setup: "Konfiguriere Berechtigungen und Pfade..."
+  pip_install_header: "Installiere Python-Abhängigkeiten (VENV)"
+  pip_req_missing: "Warnung: requirements-runtime.txt nicht gefunden in {}!"
+  pip_install_hint: |
+    ----------------------------------------------------
+    INFO: Nur Core-Abhängigkeiten wurden installiert.
+          Plugin-spezifische Pakete (Telegram, MySQL etc.)
+          bitte nach der Konfiguration über Option 6 installieren.
+    ----------------------------------------------------
+
+  # Update (update_routine)
+  update_fetching: "Suche nach Updates auf GitHub..."
+  update_not_needed: "Alles aktuell! Dein BOSWatch3 ist auf dem neuesten Stand."
+  update_found: "Update gefunden! Version springt nach vorne."
+  update_restarting_services: "Starte BOSWatch3 Services neu..."
+  update_success: "Update erfolgreich abgeschlossen!"
+  update_pull_failed: "Pull fehlgeschlagen. Lokale Änderungen wurden wiederhergestellt."
+  update_stash_conflict: "Konflikt beim Wiederherstellen lokaler Änderungen. Repo-Version wird verwendet."
+  update_warning_changes: "ACHTUNG: Lokale Änderungen an Programmdateien (getrackte Dateien) gehen verloren. Deine Konfigurationen (.yaml/.ini) sind sicher. Fortfahren? [y/N]: "
+  update_resetting: "Synchronisiere Dateien mit GitHub (Force Reset)..."
+  update_error_git: "Schwerwiegender Git-Fehler beim Zurücksetzen!"
+  update_branch_switch: "Wechsle zu Branch: {}"
+  prog_pip_dev: "Entwickler-Tools Update"
+  update_cancel_changes: "Update abgebrochen"
+  update_clean_local: "  → Bereinige lokale Änderungen..."
+
+  # Konfigurations-Dateien
+  check_configs_header: "Prüfe Konfigurations-Dateien"
+  config_standard: "Erstelle Standard-Konfiguration: {}"
+  config_created: "✔ Standard-Vorlage erstellt: {}"
+  config_exists: "Nutzer-Konfiguration {} existiert bereits. Wird übersprungen."
+  config_new_keys: "Neue Schlüssel in Example gefunden: {}"
+  config_check_examples: "Bitte manuell prüfen und ggf. übertragen aus"
+  config_no_examples_dir: "Kein examples/-Ordner gefunden, wird übersprungen."
+
+  # VENV Hausputz
+  venv_safe_header: "VENV - Entferne veraltete Pakete"
+  venv_safe_remove: "Entferne veraltetes Paket: {}"
+  venv_safe_no_req: "Keine requirements-Dateien gefunden, Hausputz übersprungen."
+  venv_safe_clean: "✔ VENV ist sauber, keine veralteten Pakete gefunden."
+  venv_safe_removed: "✔ {0} Paket(e) entfernt: {1}"
+
+  # Branch Management
+  branch_loading: "Lade verfügbare Branches von {}..."
+  branch_not_found: "Keine Branches gefunden."
+  branch_select_prompt: "Auswahl (Zahl): "
+  branch_set_success: "✔ Ziel-Branch gesetzt auf: {}"
+  branch_ask_update: "Soll das Update auf '{}' jetzt direkt ausgeführt werden? (y/n): "
+  branch_remembered: "Hinweis: Der Branch ist vorgemerkt. Führen Sie später 'Update' im Hauptmenü aus."
+  branch_error: "Fehler beim Laden der Branches: {}"
+
+  # Service Management
+  srv_not_found: "Keine Konfigurationsdateien (.yaml) gefunden."
+  srv_none_found: "Keine eingerichteten Services gefunden."
+  srv_status_running: "Läuft"
+  srv_status_stopped: "Gestoppt"
+  srv_file_status: "Datei: {} (Status: {})"
+  srv_ask_install: "Möchten Sie einen Service für '{}' installieren? (y/n): "
+  srv_action_options: "  [R] Neustart | [S] Stoppen  | [D] Entfernen | [Enter] Überspringen"
+  srv_action_prompt: "  Aktion: "
+  srv_restarted: "  ↻ {} neu gestartet."
+  srv_skip_inactive: "  - {} war nicht aktiv, wird übersprungen."
+  srv_install_success: "Service {} gestartet und aktiviert!"
+  srv_remove_success: "Service {} entfernt."
+  srv_hint_deps: "Tipp: Mit Option 6 können Abhängigkeiten geprüft und installiert werden."
+  srv_select_prompt: "Wähle einen Service (Zahl, 0 = zurück): "
+  srv_restart_failed: "  ✘ Neustart von {} fehlgeschlagen: {}"
+  srv_unknown_action: "Unbekannte Aktion. Bitte 'R', 'S', 'D' drücken oder Enter zum Überspringen."
+  srv_stopped: "Dienst {} gestoppt."
+
+  # APT & System
+  wait_apt_checking: "Prüfe APT-Sperre (Lock)..."
+  wait_apt_busy: "  -> APT wird gerade verwendet. Warte 5 Sekunden... (Timeout: {}s)"
+  wait_apt_timeout: "Timeout: APT ist immer noch gesperrt. Bitte Hintergrund-Updates prüfen."
+  
+  # PIP & VENV
+  pip_sync_updated: "✔ Pakete aktualisiert: {}"
+  pip_sync_ok: "✔ Alle Pakete entsprechen den Anforderungen."
+  pip_track_success: "✔ {} installierte Pakete werden nun getrackt."
+  pip_sync_no_core: "Keine Core-Pakete in requirements-runtime.txt gefunden."
+
+  # Hardware Compilation
+  error_compile_sdr: "Fehler bei RTL-SDR Kompilierung: {}"
+  error_compile_mm: "Fehler bei Multimon Kompilierung: {}"
+
+  # Dependencies installieren
+  menu_deps: "Abhängigkeiten prüfen & installieren"
+  dep_checking_header: "Prüfe Plugin-Abhängigkeiten in den Config-Dateien"
+  dep_installing: "★ Folgende Pakete fehlen und werden installiert: {}"
+  dep_ask_restart: "Sollen die aktiven Dienste neu gestartet werden, um die Änderungen zu laden? (y/n): "
+  dep_all_ok: "✔ Alle Abhängigkeiten sind installiert."
+  dep_success: "✔ Abhängigkeiten erfolgreich synchronisiert."
+  dep_config_read_error: "Fehler beim Lesen von {0}: {1}"
+
+en:
+  # Menu & General
+  welcome: "Welcome to BOSWatch3 Manager"
+  select_option: "Please select an option:"
+  menu_install: "Full Installation"
+  menu_update: "Check for Updates / Update"
+  menu_service_manager: "Manage Services"
+  menu_config: "Change Repository/Branch"
+  menu_exit: "Exit"
+  done_success: "Action completed successfully!"
+  already_installed: "already installed."
+  error_not_root: "❌ Please run as root: sudo python3 install/manager.py"
+  menu_locked: "(installation required)"
+  menu_not_installed: "⚠ Please run a full installation first (option 1)."
+  menu_dashboard_title: "Active Background Services"
+  menu_dashboard_reason: "Reason"
+  menu_logs: "Service Logs (Troubleshooting)"
+  log_select_prompt: "Select a service to view logs (0 to go back): "
+  log_viewing: "--- Showing last 50 lines for {} ---"
+  log_back_prompt: "\nPress Enter to return to menu..."
+  log_none: "No services installed to show logs for."
+  run_cmd_failed: "Command failed: {0}\nSee {1} for details."
+
+  # Reboot-Prompt
+  reboot_ask: "Reboot strongly suggested, so all changes (e.g. SDR-Blacklist) get active. Reboot now? [y/N]"
+  reboot_now: "Rebooting system"
+  reboot_skip: "Skipping Reboot. Back to menu."
+
+  # Installation
+  installing_sys_deps: "Installing system packages (apt)..."
+  compiling_sdr: "Compiling rtl-sdr (SDR drivers)..."
+  compiling_multimon: "Compiling multimon-ng (Decoder)..."
+  blacklist_sdr: "Blacklisting DVB-T drivers..."
+  blacklist_success: "Blacklist successfully created at {}."
+  blacklist_error: "ERROR: Could not write blacklist ({})."
+  blacklist_warning: "Note: The SDR might not work correctly after reboot because the default driver is still active."
+  perm_setup: "Configuring permissions and paths..."
+  pip_install_header: "Installing Python dependencies (VENV)"
+  pip_req_missing: "Warning: requirements-runtime.txt not found in {}!"
+  pip_install_hint: |
+    ----------------------------------------------------
+    INFO: Only core dependencies were installed.
+          Plugin-specific packages (e.g. Telegram, MySQL)
+          can be installed after configuration via option 6.
+    ----------------------------------------------------
+
+  # Update
+  update_fetching: "Fetching updates from GitHub..."
+  update_not_needed: "Everything is up to date! Your BOSWatch3 is current."
+  update_found: "Update found! Version is moving forward."
+  update_restarting_services: "Restarting BOSWatch3 services..."
+  update_success: "Update completed successfully!"
+  update_pull_failed: "Pull failed. Local changes have been restored."
+  update_stash_conflict: "Conflict restoring local changes. Using repository version."
+  update_warning_changes: "WARNING: Local changes to program files (tracked files) will be lost. Your configurations (.yaml/.ini) are safe. Proceed? [y/N]: "
+  update_resetting: "Syncing files with GitHub (Force Reset)..."
+  update_error_git: "Fatal Git error during reset!"
+  update_branch_switch: "Switching to branch: {}"
+  prog_pip_dev: "Developer tools update"
+  update_cancel_changes: "Update canceled"
+  update_clean_local: "  → Cleanup local changes..."
+
+  # Config Files
+  check_configs_header: "Checking configuration Files"
+  config_standard: "Creating default configuration: {}"
+  config_created: "✔ Default template created: {}"
+  config_exists: "User configuration {} already exists. Skipping."
+  config_new_keys: "New keys found in example: {}"
+  config_check_examples: "Please check manually and transfer from"
+  config_no_examples_dir: "No examples/ directory found, skipping."
+
+  # VENV Safe
+  venv_safe_header: "VENV - Removing outdated packages"
+  venv_safe_remove: "Removing outdated package: {}"
+  venv_safe_no_req: "No requirements files found, skipping cleanup."
+  venv_safe_clean: "✔ VENV is clean, no outdated packages found."
+  venv_safe_removed: "✔ {0} package(s) removed: {1}"
+
+  # Branch Management
+  branch_loading: "Loading available branches from {}..."
+  branch_not_found: "No branches found."
+  branch_select_prompt: "Choice (Number): "
+  branch_set_success: "✔ Target branch set to: {}"
+  branch_ask_update: "Do you want to run the update to '{}' now? (y/n): "
+  branch_remembered: "Note: Branch marked. Run 'Update' from main menu later."
+  branch_error: "Error loading branches: {}"
+
+  # Service Management
+  srv_not_found: "No configuration files (.yaml) found."
+  srv_none_found: "No configured services found."
+  srv_status_running: "Running"
+  srv_status_stopped: "Stopped"
+  srv_file_status: "File: {} (Status: {})"
+  srv_ask_install: "Do you want to install a service for '{}'? (y/n): "
+  srv_action_options: "  [R]estart | [S]top | [D]elete | [Enter] Skip"
+  srv_action_prompt: "  Action: "
+  srv_restarted: "  ↻ {} restarted."
+  srv_skip_inactive: "  - {} was not active, skipping."
+  srv_install_success: "Service {} started and enabled!"
+  srv_remove_success: "Service {} removed."
+  srv_hint_deps: "Tip: Use option 6 to check and install dependencies."
+  srv_select_prompt: "Select a service (Number, 0 = back): "
+  srv_restart_failed: "  ✘ Failed to restart {}: {}"
+  srv_unknown_action: "Unknown action. Please press 'R', 'S', 'D' or Enter to skip."
+  srv_stopped: "Service {} stopped."
+
+  # APT & System
+  wait_apt_checking: "Checking for APT lock..."
+  wait_apt_busy: "  -> APT is currently busy. Waiting 5 seconds... (Timeout: {}s)"
+  wait_apt_timeout: "Timeout: APT is still locked. Please check for background updates."
+
+  # PIP & VENV
+  pip_sync_updated: "✔ Packages updated: {}"
+  pip_sync_ok: "✔ All packages meet the requirements."
+  pip_track_success: "✔ {} installed packages are now tracked."
+  pip_sync_no_core: "No core packages found in requirements-runtime.txt."
+
+  # Hardware Compilation
+  error_compile_sdr: "Error during RTL-SDR compilation: {}"
+  error_compile_mm: "Error during Multimon compilation: {}"
+
+  # installing Dependencies
+  menu_deps: "Check & install dependencies"
+  dep_checking_header: "Checking plugin dependencies in config files"
+  dep_installing: "★ The following packages are missing and will be installed: {}"
+  dep_ask_restart: "Should active services be restarted to load changes? (y/n): "
+  dep_config_read_error: "Error reading {0}: {1}"
+  dep_all_ok: "✔ All dependencies are installed."
+  dep_success: "✔ Dependencies successfully synchronized."
