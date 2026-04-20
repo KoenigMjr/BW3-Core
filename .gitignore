@@ -36,3 +36,9 @@ docu/site/
 .settings/
 .project
 .pydevproject
+
+# Config-Files (User-Configs nicht ins Repo)
+config/*.yaml
+config/*.ini
+!config/examples/
+!config/examples/*
