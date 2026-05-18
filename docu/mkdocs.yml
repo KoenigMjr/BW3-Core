@@ -24,6 +24,7 @@ nav:
       - Geocoding: modul/geocoding.md
       - Mode Filter: modul/mode_filter.md
       - Multicast: modul/multicast.md
+      - PacketDump: modul/packet_dump.md
       - Regex Filter: modul/regex_filter.md
   - Plugins:
       - Http: plugin/http.md
