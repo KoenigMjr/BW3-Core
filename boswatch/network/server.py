@@ -64,7 +64,7 @@ class _ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
                 header_stripped = header.strip()
                 if not header_stripped.isdigit():
-                    logging.error("%s protocol desync: expected numeric header, got '%.20s'. Forcing disconnect.", req_name, header_stripped)
+                    logging.error("%s Protocol desync: invalid packet header (expected an integer length, got %r) - closing connection", req_name, header)
                     break
 
                 length = int(header_stripped)
