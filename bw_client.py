@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        bw_client.py
-@date:        16.07.2025
+@date:        27.07.2026
 @author:      Bastian Schroll
 @description: BOSWatch client application
 """
@@ -91,6 +91,7 @@ inputSource = None
 inputQueue = queue.Queue()
 
 try:
+    # loading config
     ip = bwConfig.get("server", "ip", default="127.0.0.1")
     port = bwConfig.get("server", "port", default="8080")
 
@@ -100,19 +101,24 @@ try:
             ip = broadcastClient.serverIP
             port = broadcastClient.serverPort
 
+    # 2. initializing input-source
+    # refactor: DRY-principle
     if not args.test:
         logging.debug("loading input source: %s", bwConfig.get("client", "inputSource"))
-        if bwConfig.get("client", "inputSource") == "sdr":
+        source_type = bwConfig.get("client", "inputSource")
+        if source_type == "sdr":
             inputSource = SdrInput(inputQueue, bwConfig.get("inputSource", "sdr"), bwConfig.get("decoder"))
-        elif bwConfig.get("client", "inputSource") == "lineIn":
+        elif source_type == "lineIn":
             inputSource = LineInInput(inputQueue, bwConfig.get("inputSource", "lineIn"), bwConfig.get("decoder"))
-        elif bwConfig.get("client", "inputSource") == "PulseAudio":
+        elif source_type == "PulseAudio":
             inputSource = PulseAudioInput(inputQueue, bwConfig.get("inputSource", "PulseAudio"), bwConfig.get("decoder"))
         else:
-            logging.fatal("Invalid input source: %s", bwConfig.get("client", "inputSource"))
+            logging.fatal("Invalid input source: %s", source_type)
             exit(1)
 
         inputSource.start()
+
+    # test mode: read testdata from file
     else:
         logging.warning("STARTING TESTMODE!")
         logging.debug("reading testdata from file")
@@ -124,41 +130,78 @@ try:
                 inputQueue.put_nowait((bwPacket, time.time()))
         logging.debug("finished reading testdata")
 
+    # 3. Connect to server
     bwClient = TCPClient()
     bwClient.connect(ip, port)
+    if bwClient.isConnected:
+        logging.info("Connected to server at %s:%s", ip, port)
+
+    # buffer for zero-packet-loss - persists across retries until [ack]
+    bwPacket_pending = None
+
+    # 4. main while-loop
     while 1:
 
+        # A) securing connection
         if not bwClient.isConnected:
             reconnectDelay = bwConfig.get("client", "reconnectDelay", default="3")
             logging.warning("connection to server lost - sleep %d seconds", reconnectDelay)
             time.sleep(reconnectDelay)
             bwClient.connect(ip, port)
+            if bwClient.isConnected:
+                logging.info("Connected to server at %s:%s", ip, port)
+            continue  # first fixing connection, then go ahead
 
-        elif not inputQueue.empty():
+        # B) if puffer empty: get new packet from queue
+        if bwPacket_pending is None and not inputQueue.empty():
             data = inputQueue.get()
             logging.info("get data from queue (waited %0.3f sec.)", time.time() - data[1])
             logging.debug("%s packet(s) still waiting in queue", inputQueue.qsize())
-            bwPacket = data[0]
+
+            bwPacket_pending = data[0]
             inputQueue.task_done()
 
-            bwPacket.printInfo()
-            misc.addClientDataToPacket(bwPacket, bwConfig)
+            bwPacket_pending.printInfo()
+            misc.addClientDataToPacket(bwPacket_pending, bwConfig)
 
-            for sendCnt in range(bwConfig.get("client", "sendTries", default="3")):
-                bwClient.transmit(str(bwPacket))
-                if bwClient.receive() == "[ack]":
-                    logging.debug("ack ok")
-                    break
-                sendDelay = bwConfig.get("client", "sendDelay", default="3")
-                logging.warning("cannot send packet - sleep %d seconds", sendDelay)
+        # C) if packet in puffer: try sending
+        if bwPacket_pending is not None:
+            ack_received = False
+            sendTries = int(bwConfig.get("client", "sendTries", default="3"))
+            logging.debug("Processing pending packet (Mode: %s), sending (tries: %d)", bwPacket_pending.get("mode"), sendTries)
+
+            for sendCnt in range(sendTries):
+                if bwClient.transmit(str(bwPacket_pending)):
+                    if bwClient.receive() == "[ack]":
+                        logging.debug("ack ok")
+                        ack_received = True
+                        break  # success!
+
+                sendDelay = int(bwConfig.get("client", "sendDelay", default="3"))
+                logging.warning("cannot send packet (try %d/%d) - sleep %d seconds", sendCnt + 1, sendTries, sendDelay)
                 time.sleep(sendDelay)
 
+                # Reconnect only if there are more attempts left
+                if sendCnt < sendTries - 1:
+                    logging.warning("no [ack] - forcing reconnect before next attempt")
+                    bwClient.disconnect()
+                    bwClient.connect(ip, port)
+                    if bwClient.isConnected:
+                        logging.info("Connected to server at %s:%s", ip, port)
+
+            if ack_received:
+                bwPacket_pending = None  # empty puffer, ready for next packet
+            else:
+                logging.error("Packet delivery failed after all tries. Buffer preserved.")
+                bwClient.disconnect()  # reset for next while-loop
+
         else:
+            # Nothing to do - queue and buffer are both empty
             if args.test:
+                # quit in test mode, if queue done
                 break
             time.sleep(0.1)  # reduce cpu load (wait 100ms)
             # in worst case a packet have to wait 100ms until it will be processed
-
 
 except KeyboardInterrupt:  # pragma: no cover
     logging.warning("Keyboard interrupt")
