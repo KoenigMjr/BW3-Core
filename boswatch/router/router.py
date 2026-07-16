@@ -75,6 +75,20 @@ class Router:
         @param start_index: index of the routeList to start from
         @return processed bwPacket, list of packets, or False
         """
+        # Catch incoming lists from the manager (cascaded routers)
+        if isinstance(bwPacket, list):
+            logging.debug("[%s] Received a list of %d packets from manager. Branching immediately.", self.name, len(bwPacket))
+            results = []
+            for single_packet in bwPacket:
+                res = self._process_route_recursive(single_packet, start_index)
+                if res is not False and res is not None:
+                    if isinstance(res, list):
+                        results.extend(res)
+                    else:
+                        results.append(res)
+            return results if results else False
+
+        # Normal path for a single packet starts here
         current_packet = bwPacket
 
         for i in range(start_index, len(self.routeList)):
