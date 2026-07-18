@@ -32,7 +32,19 @@ class SdrInput(InputBase):
         try:
             sdrProc = ProcessManager(str(sdrConfig.get("rtlPath", default="rtl_fm")))
             sdrProc.addArgument("-d " + str(sdrConfig.get("device", default="0")))     # device id
-            sdrProc.addArgument("-f " + str(sdrConfig.get("frequency")))               # frequencies
+
+            # START CHANGE: Manage one or more frequencies
+            frequencies_str = str(sdrConfig.get("frequency"))
+            if frequencies_str:
+                frequencies_list = frequencies_str.split(',')
+                for freq in frequencies_list:
+                    freq_stripped = freq.strip()
+                    if freq_stripped:  # Only add if the string is not empty
+                        sdrProc.addArgument("-f " + freq_stripped)               # frequencies
+            else:
+                logging.error("No frequency specified in the sdr configuration!")
+            # END CHANGE
+
             sdrProc.addArgument("-p " + str(sdrConfig.get("error", default="0")))      # frequency error in ppm
             sdrProc.addArgument("-l " + str(sdrConfig.get("squelch", default="1")))    # squelch
             sdrProc.addArgument("-g " + str(sdrConfig.get("gain", default="100")))     # gain
