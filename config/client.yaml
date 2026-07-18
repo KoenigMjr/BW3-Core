@@ -23,6 +23,9 @@ inputSource:
   sdr:
     device: 0
     frequency: 85M
+    # Multiple frequencies can be specified, comma separated (e.g. 85M,86.1M)
+    # IMPORTANT: If more than one frequency is used, squelch MUST be set.
+    # frequency: 85M,85.5M,89.755M
     error: 0
     squelch: 1
     gain: 100
