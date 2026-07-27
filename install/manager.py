@@ -50,7 +50,7 @@ class BW3Manager:
             'branch': os.environ.get('BW3_BRANCH', "master"),
             'language': os.environ.get('BW3_LANG', "de"),
             'installed': False,
-            'rtlsdr_commit': "2659e2df31e592d74d6dd264a4f5ce242c6369c8",
+            'rtlsdr_commit': "84195f169f5b4b7dc06a10efb1e210d02b49e51c",
             'multimon_branch': "1.1.8",
             'installed_rtlsdr': None,
             'installed_multimon': None,
@@ -852,16 +852,16 @@ class BW3Manager:
         """Compiles rtl-sdr with a specific commit."""
         self.log(f"\n{Fore.CYAN}--- {self.t('compiling_sdr')} (Hash: {commit[:7]}) ---")
         cmds = [
-            "rm -rf /tmp/librtlsdr",  # Clean start
-            "cd /tmp && git clone https://github.com/steve-m/librtlsdr.git",
-            f"cd /tmp/librtlsdr && git checkout {commit}",
-            "cd /tmp/librtlsdr && mkdir build",
-            "cd /tmp/librtlsdr/build && cmake ../ -DINSTALL_UDEV_RULES=ON -DDETACH_KERNEL_DRIVER=ON",
-            "cd /tmp/librtlsdr/build && make -j$(nproc)",
-            "make install -C /tmp/librtlsdr/build",
+            "rm -rf /tmp/rtl-sdr",
+            "cd /tmp && git clone https://github.com/osmocom/rtl-sdr.git",
+            f"cd /tmp/rtl-sdr && git checkout {commit}",
+            "cd /tmp/rtl-sdr && mkdir build",
+            "cd /tmp/rtl-sdr/build && cmake ../ -DINSTALL_UDEV_RULES=ON -DDETACH_KERNEL_DRIVER=ON",
+            "cd /tmp/rtl-sdr/build && make -j$(nproc)",
+            "make install -C /tmp/rtl-sdr/build",
             "ldconfig",
-            "cp /tmp/librtlsdr/rtl-sdr.rules /etc/udev/rules.d/",
-            "rm -rf /tmp/librtlsdr"
+            "cp /tmp/rtl-sdr/rtl-sdr.rules /etc/udev/rules.d/",
+            "rm -rf /tmp/rtl-sdr"
         ]
         try:
             self.run_with_progress(cmds, "RTL-SDR")
