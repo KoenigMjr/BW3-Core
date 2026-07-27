@@ -103,9 +103,25 @@ try:
                 bwPacket.set("clientIP", data[0])
                 misc.addServerDataToPacket(bwPacket, bwConfig)
 
-                logging.debug("[ ---   ALARM   --- ]")
+                mode = bwPacket.get("mode")
+                recipient = None
+
+                if mode == "pocsag":
+                    recipient = bwPacket.get("ric")
+                elif mode == "fms":
+                    recipient = bwPacket.get("fms")
+                elif mode == "zvei":
+                    recipient = bwPacket.get("tone")
+
+                if recipient:
+                    logging.debug("[ ---   ALARM %s   --- ]", recipient)
+                else:
+                    # Fallback for 'msg' or no recipient found
+                    logging.debug("[ ---   ALARM   --- ]")
+
                 bwRoutMan.runRouters(bwConfig.get("alarmRouter"), bwPacket)
-                logging.debug("[ --- END ALARM --- ]")
+
+                logging.debug("[ ---   END ALARM   --- ]")
 
                 incomingQueue.task_done()
 
