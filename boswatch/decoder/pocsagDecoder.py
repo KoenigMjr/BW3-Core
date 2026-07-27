@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        pocsagDecoder.py
-@date:        15.10.2025
+@date:        12.04.2026
 @author:      Bastian Schroll
 @description: Decoder class for pocsag
 """
@@ -45,8 +45,12 @@ class PocsagDecoder:
 
         if ric and len(ric) == 7:
             if "Alpha:" in data:
-                message = data.split('Alpha:')[1].strip()
-                message = re.sub(r'<\s*(?:NUL|EOT)\s*>?', '', message).strip()
+                parts = data.split('Alpha:')
+                if len(parts) > 1:
+                    message = parts[1].strip()
+                    message = re.sub(r'<\s*(?:NUL|EOT)\s*>?', '', message).strip()
+                else:
+                    message = ""
             else:
                 message = ""
             subricText = subric.replace("1", "a").replace("2", "b").replace("3", "c").replace("4", "d")
