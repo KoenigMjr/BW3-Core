@@ -7,7 +7,7 @@
 #                German BOS Information Script
 #                     by Bastian Schroll
 #@file:        translation.yaml
-#@date:        07.05.2026
+#@date:        01.09.2026
 #@author:      Claus Schichl
 #@description: Main translation-file for install & manager
 
@@ -105,13 +105,17 @@ de:
   srv_status_stopped: "Gestoppt"
   srv_file_status: "Datei: {} (Status: {})"
   srv_ask_install: "Möchten Sie einen Service für '{}' installieren? (y/n): "
-  srv_action_options: "  [R] Neustart | [D] Entfernen | [Enter] Überspringen"
+  srv_action_options: "  [R] Neustart | [S] Stoppen  | [D] Entfernen | [Enter] Überspringen"
   srv_action_prompt: "  Aktion: "
   srv_restarted: "  ↻ {} neu gestartet."
   srv_skip_inactive: "  - {} war nicht aktiv, wird übersprungen."
   srv_install_success: "Service {} gestartet und aktiviert!"
   srv_remove_success: "Service {} entfernt."
   srv_hint_deps: "Tipp: Mit Option 6 können Abhängigkeiten geprüft und installiert werden."
+  srv_select_prompt: "Wähle einen Service (Zahl, 0 = zurück): "
+  srv_restart_failed: "  ✘ Neustart von {} fehlgeschlagen: {}"
+  srv_unknown_action: "Unbekannte Aktion. Bitte 'R', 'S', 'D' drücken oder Enter zum Überspringen."
+  srv_stopped: "Dienst {} gestoppt."
 
   # APT & System
   wait_apt_checking: "Prüfe APT-Sperre (Lock)..."
@@ -231,15 +235,19 @@ en:
   srv_status_stopped: "Stopped"
   srv_file_status: "File: {} (Status: {})"
   srv_ask_install: "Do you want to install a service for '{}'? (y/n): "
-  srv_action_options: "  [R] Restart | [D] Remove | [Enter] Skip"
+  srv_action_options: "  [R]estart | [S]top | [D]elete | [Enter] Skip"
   srv_action_prompt: "  Action: "
   srv_restarted: "  ↻ {} restarted."
   srv_skip_inactive: "  - {} was not active, skipping."
   srv_install_success: "Service {} started and enabled!"
   srv_remove_success: "Service {} removed."
   srv_hint_deps: "Tip: Use option 6 to check and install dependencies."
+  srv_select_prompt: "Select a service (Number, 0 = back): "
+  srv_restart_failed: "  ✘ Failed to restart {}: {}"
+  srv_unknown_action: "Unknown action. Please press 'R', 'S', 'D' or Enter to skip."
+  srv_stopped: "Service {} stopped."
 
-# APT & System
+  # APT & System
   wait_apt_checking: "Checking for APT lock..."
   wait_apt_busy: "  -> APT is currently busy. Waiting 5 seconds... (Timeout: {}s)"
   wait_apt_timeout: "Timeout: APT is still locked. Please check for background updates."
