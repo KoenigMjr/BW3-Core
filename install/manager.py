@@ -9,7 +9,7 @@ r"""
                 German BOS Information Script
                      by Bastian Schroll
 @file:        manager.py
-@date:        07.05.2026
+@date:        24.08.2026
 @author:      Claus Schichl
 @description: Main Management File for BOSWatch3 (install, update, service management)
 """
@@ -948,63 +948,86 @@ class BW3Manager:
 
     def service_menu(self):
         """Submenu for service management (Pro Version)."""
-        # automatic silent dependencies check while enter
+        # Automatic silent dependencies check upon entering
         self.sync_dependencies(silent=True)
 
         while True:
             config_dir = self.base_path / 'config'
 
             # 1. Scan for YAML files (client/server)
-            configs = [
-                f for f in config_dir.glob("*.yaml")
-                if f.stem.startswith(('client', 'server'))
-            ]
+            configs = sorted(
+                [f for f in config_dir.glob("*.yaml") if f.stem.startswith(('client', 'server'))],
+                key=lambda p: p.name
+            )
 
             if not configs:
                 self.log(Fore.RED + self.t('srv_not_found'))
-                return
+                return  # Return to main menu
 
             self.log(f"\n{Fore.GREEN}=== {self.t('menu_service_manager')} ===")
             self.log(Style.DIM + f"  → {self.t('srv_hint_deps')}")
 
-            # creating overview-screen
-            for i, cfg in enumerate(configs):
+            # 2. Generate overview screen
+            for i, cfg in enumerate(configs, start=1):
                 service_name = f"bw3_{cfg.stem}.service"
-                is_active = subprocess.run(["systemctl", "is-active", "--quiet", service_name]).returncode == 0
+                # is-active --quiet returns 0 when active; keep output hidden
+                is_active = subprocess.run(
+                    ["systemctl", "is-active", "--quiet", service_name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ).returncode == 0
+
                 status_text = (Fore.GREEN + self.t('srv_status_running') if is_active else Fore.RED + self.t('srv_status_stopped'))
 
-                # Zeigt: [1] client.yaml - Läuft
-                self.log(f"[{i + 1}] {cfg.name} - {status_text}")
+                # Shows: [1] client.yaml - Running
+                self.log(f"[{i}] {cfg.name} - {status_text}")
 
             self.log("\n[0] " + self.t('menu_exit'))
 
-            choice = input("\n" + self.t('branch_select_prompt'))
+            choice = input("\n" + self.t('srv_select_prompt'))
 
-            # input 0 or Enter (empty) = back to main menu
+            # If 0 or simply Enter (empty) is pressed, return to the main menu
             if choice == "0" or choice.strip() == "":
                 break
 
-            # doing for service
+            # 3. Execute targeted action for ONE selected service
             try:
                 idx = int(choice) - 1
                 if 0 <= idx < len(configs):
                     cfg = configs[idx]
                     service_name = f"bw3_{cfg.stem}.service"
+                    service_path = Path("/etc/systemd/system") / service_name
 
-                    if not os.path.exists(f"/etc/systemd/system/{service_name}"):
+                    if not service_path.exists():
                         install = input(self.t('srv_ask_install').format(cfg.name))
                         if install.lower() == 'y':
                             self.install_single_service(cfg)
                     else:
                         self.log(self.t('srv_action_options'))
                         action = input(self.t('srv_action_prompt')).lower()
+
                         if action == 'r':
-                            subprocess.run(["systemctl", "restart", service_name])
-                            self.log(Fore.GREEN + self.t('srv_restarted').format(service_name))
+                            res = subprocess.run(["systemctl", "restart", service_name], capture_output=True, text=True)
+                            if res.returncode == 0:
+                                self.log(Fore.GREEN + self.t('srv_restarted').format(service_name))
+                            else:
+                                self.log(Fore.RED + self.t('srv_restart_failed').format(service_name, res.stderr.strip()))
+                        elif action == 's':
+                            subprocess.run(["systemctl", "stop", service_name])
+                            self.log(Fore.YELLOW + self.t('srv_stopped').format(service_name))
                         elif action == 'd':
                             self.remove_single_service(service_name)
+                        else:
+                            # Unknown action -> brief hint and continue
+                            self.log(Fore.YELLOW + self.t('srv_unknown_action'))
+                else:
+                    # Out of range -> ignore and re-display menu
+                    continue
             except ValueError:
-                pass
+                # For invalid inputs (e.g. letters), simply reload the menu
+                continue
+            except KeyboardInterrupt:
+                # Allow graceful exit to main menu on Ctrl-C
+                break
 
     def install_single_service(self, config_file):
         """Creates a systemd service file."""
