@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        router.py
-@date:        03.07.2026
+@date:        30.08.2026
 @author:      Bastian Schroll, Claus Schichl
 @description: Class for the BOSWatch packet router
 """
@@ -103,6 +103,12 @@ class Router:
                 continue
 
             if bwPacket_tmp is False:
+                if routeObject.isRouter:
+                    # A nested router filtered/stopped internally for this packet.
+                    # That's just an empty branch - the parent router continues normally.
+                    logging.debug("[%s] sub-router '%s' returned False - continuing with next route point", self.name, routeObject.name)
+                    continue
+
                 # returning False stops the route immediately for this specific packet branch
                 logging.debug("[%s] stopped at route %s", self.name, routeObject.name)
                 return False
