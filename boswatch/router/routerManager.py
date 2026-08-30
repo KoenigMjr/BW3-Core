@@ -89,7 +89,9 @@ class RouterManager:
                                                                   loadedClass._cleanup))
 
                     elif routeType == "router":
-                        routerDict_tmp[routerName].addRoute(Route(routeName, routerDict_tmp[routeRes].runRouter, isRouter=True))
+                        routerDict_tmp[routerName].addRoute(Route(routeName,
+                                                                  routerDict_tmp[routeRes].runRouter,
+                                                                  isRouter=True))
 
                     else:
                         logging.error("unknown type '%s' in %s", routeType, route)
