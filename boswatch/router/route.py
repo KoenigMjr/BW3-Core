@@ -14,6 +14,7 @@ r"""!
 @author:      Bastian Schroll
 @description: Class for a single BOSWatch packet router route point
 """
+
 import logging
 
 logging.debug("- %s loaded", __name__)
@@ -28,12 +29,11 @@ class Route:
         @param callback: instance of the callback function
         @param statsCallback: instance of the callback to get statistics (None)
         @param cleanupCallback: instance of the callback to run a cleanup method (None)
-        @param isRouter: True if this route point delegates to another Router instance
-                         (type: router in the config). Used by _process_route_recursive()
-                         to distinguish a sub-router that filtered all packets internally
-                         (parent should continue to the next route point) from a
-                         module/plugin that explicitly stopped the route
-                         (parent should stop immediately). (False)
+        @param isRouter: True if this route point jumps into another router (type: router).
+                         Used by Router._process_route_recursive() to distinguish a
+                         sub-router that filtered internally (continue with the parent's
+                         next route point) from a module/plugin that explicitly stops
+                         the whole route (stop immediately). (False)
         """
         self.name = name
         self.callback = callback
