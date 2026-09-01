@@ -17,6 +17,7 @@ requests==2.32.5 # [telegram] Benachrichtigungen
 aiohttp==3.13.5 # [http][divera] HTTP-Schnittstelle
 mysql-connector-python==9.4.0 # [mysql] Datenbank-Anbindung
 geocoder==1.38.1 # [geocoding] GPS-Dienste
+paho-mqtt==2.1.0 # [mqtt] MQTT-Publishing
 
 # Manager-Abhängigkeiten
 alive-progress==3.3.0  # [manager] Fortschrittsbalken im Manager
