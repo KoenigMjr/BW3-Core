@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        client.py
-@date:        12.04.2026
+@date:        01.09.2026
 @author:      Bastian Schroll
 @description: Class implementation for a TCP socket client
 """
@@ -57,12 +57,16 @@ class TCPClient:
 
         @return True or False"""
         try:
-            if self.isConnected:
-                self._sock.shutdown(socket.SHUT_RDWR)
+            if self._sock:
+                try:
+                    self._sock.shutdown(socket.SHUT_RDWR)
+                except socket.error:
+                    pass  # Ignore shutdown errors on a dead connection
                 self._sock.close()
+                self._sock = None
                 logging.debug("disconnected")
                 return True
-            logging.warning("client always disconnected")
+            logging.warning("client already disconnected")
             return True
         except socket.error as e:
             logging.error(e)
@@ -127,9 +131,9 @@ class TCPClient:
                     self._sock.sendall(header + data)
                     return True
             return False
-        except socket.error as e:
-            if e.errno != 32:
-                logging.exception(e)
+        except (socket.timeout, TimeoutError, socket.error) as e:
+            logging.warning("Connection lost (%s) - buffering packet and entering retry mode", e)
+            self.disconnect()
             return False
         except ValueError:
             return False
