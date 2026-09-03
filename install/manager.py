@@ -756,24 +756,24 @@ class BW3Manager:
         self._sync_core_requirements()
         self._update_pip_tracking()
 
-        # Dev requirements only if needed
         if "requirements.txt" in diff:
             self.run_with_progress([f"{venv_pip} install -r requirements.txt"], self.t('prog_pip_dev'))
 
         # Dependencies-Check
-        if any('config/' in f for f in diff):
-            self.log(f"\n{Fore.CYAN}{self.t('menu_deps')}")
-            self.sync_dependencies()
-
-            self.log(f"\n{Fore.GREEN}{self.t('dep_success')}")
+        self.log(f"\n{Fore.CYAN}{self.t('menu_deps')}")
+        self.sync_dependencies(ask_restart=False)
+        self.log(f"\n{Fore.GREEN}{self.t('dep_success')}")
 
         # 9. Check example configs
         self.setup_example_configs()
 
         # 10. Restart services
         self.save_config()
-        self.restart_active_services()
         self.log(f"\n{Fore.GREEN}{Style.BRIGHT}{self.t('update_success')}")
+
+        confirm = input("\n" + self.t('dep_ask_restart')).lower()
+        if confirm == 'y':
+            self.restart_active_services()
 
         # 11. Reboot prompt
         self.ask_for_reboot()
@@ -1109,7 +1109,7 @@ WantedBy=multi-user.target
 
         return active_resources
 
-    def sync_dependencies(self, silent=False):
+    def sync_dependencies(self, silent=False, ask_restart=True):
         """Installs missing dependencies based on config-files."""
         if not silent:
             self.log(f"\n{Fore.CYAN}--- {self.t('dep_checking_header')} ---")
@@ -1152,7 +1152,6 @@ WantedBy=multi-user.target
                 except Exception:
                     missing.append(p)
 
-        # FINAL LOGIC FLOW (The Clean Senior Way)
         if missing:
             self.log(Fore.YELLOW + self.t('dep_installing').format(len(missing)))
             venv_pip = self.base_path / "venv" / "bin" / "pip"
@@ -1160,17 +1159,17 @@ WantedBy=multi-user.target
             # Run installation
             self.run_with_progress([f"{venv_pip} install {p}" for p in missing], "PIP Sync")
             self._update_pip_tracking()
-            self.log(Fore.GREEN + f"✔ {self.t('dep_success')}")
+            self.log(Fore.GREEN + self.t('dep_success'))
 
             # Restart query only if not silent
-            if not silent:
+            if not silent and ask_restart:
                 confirm = input("\n" + self.t('dep_ask_restart')).lower()
                 if confirm == 'y':
                     self.restart_active_services()
         else:
             # Everything okay
             if not silent:
-                self.log(Fore.GREEN + f"✔ {self.t('dep_all_ok')}")
+                self.log(Fore.GREEN + self.t('dep_all_ok'))
 
     def parse_requirements_tags(self):
         """Reads requirements-runtime.txt and maps packages to tags with multi-tag [tag1][tag2]"""
