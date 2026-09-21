@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        client.py
-@date:        01.09.2026
+@date:        21.09.2026
 @author:      Bastian Schroll
 @description: Class implementation for a TCP socket client
 """
@@ -124,16 +124,12 @@ class TCPClient:
         r"""!Property of client connected state"""
         try:
             if self._sock:
+                # getpeername() raises OSError if not connected
+                self._sock.getpeername()
+                # Additionally check writability
                 _, write, _ = select.select([], [self._sock], [], 0.1)
-                if write:
-                    data = "<keep-alive>".encode("utf-8")
-                    header = str(len(data)).ljust(HEADERSIZE).encode("utf-8")
-                    self._sock.sendall(header + data)
-                    return True
+                return bool(write)
             return False
-        except (socket.timeout, TimeoutError, socket.error) as e:
+        except (socket.error, ValueError) as e:
             logging.warning("Connection lost (%s) - buffering packet and entering retry mode", e)
-            self.disconnect()
-            return False
-        except ValueError:
             return False
