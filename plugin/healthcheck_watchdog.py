@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        template_plugin.py
-@date:        28.03.2026
+@date:        22.09.2026
 @author:      Claus Schichl
 @description: Watchdog for Healthcheck.io
 """
@@ -50,6 +50,13 @@ class BoswatchPlugin(PluginBase):
 
     def _send_ping(self):
         """Sendet den 'Alles OK' Ping an Healthchecks.io"""
+        threading.Thread(
+                target=self._do_ping,
+                daemon=True
+            ).start()
+
+    def _do_ping(self):
+        """Worker: führt den eigentlichen HTTP-Request aus"""
         try:
             requests.get(self.url, timeout=10)
             logging.debug("WATCHDOG: Ping an Healthchecks.io gesendet.")
