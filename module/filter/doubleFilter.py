@@ -71,7 +71,7 @@ class BoswatchModule(ModuleBase):
 
         # 1. removing old pakets - compare packet timestamps directly
         for p in list(self._filterLists[mode]):
-            packet_time = float(p.get("timestamp", 0))
+            packet_time = float(p.get("timestamp") or 0)
             if (float(bwPacket.get("timestamp")) - packet_time) > ignore_time:
                 self._filterLists[mode].remove(p)
 
