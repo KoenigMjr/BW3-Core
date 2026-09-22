@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        doubleFilter.py
-@date:        07.06.2026
+@date:        22.09.2026
 @author:      Bastian Schroll, b-watch
 @description: Filter module for double packages
 """
@@ -19,7 +19,6 @@ from module.moduleBase import ModuleBase
 
 # ###################### #
 # Custom plugin includes #
-import time
 # ######################
 
 logging.debug("- %s loaded", __name__)
@@ -68,13 +67,12 @@ class BoswatchModule(ModuleBase):
 
     def _check(self, bwPacket, filterFields):
         mode = bwPacket.get("mode")
-        current_time = time.time()
         ignore_time = self.config.get("ignoreTime", default=10)
 
-        # 1. removing old pakets
+        # 1. removing old pakets - compare packet timestamps directly
         for p in list(self._filterLists[mode]):
             packet_time = float(p.get("timestamp", 0))
-            if packet_time < (current_time - ignore_time):
+            if (float(bwPacket.get("timestamp")) - packet_time) > ignore_time:
                 self._filterLists[mode].remove(p)
 
         # 2. checking doubles
