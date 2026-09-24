@@ -124,10 +124,13 @@ class TCPClient:
         r"""!Property of client connected state"""
         try:
             if self._sock:
-                # getpeername() raises OSError if not connected
                 self._sock.getpeername()
-                # Additionally check writability
-                _, write, _ = select.select([], [self._sock], [], 0.1)
+                read, write, _ = select.select([self._sock], [self._sock], [], 0.1)
+                if read:
+                    # Peek without consuming - empty = FIN = connection closed
+                    data = self._sock.recv(1, socket.MSG_PEEK)
+                    if not data:
+                        return False
                 return bool(write)
             return False
         except (socket.error, ValueError) as e:
