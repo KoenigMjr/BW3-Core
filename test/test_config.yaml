@@ -52,6 +52,7 @@ descriptor_test:
         add: Test 12345
       - for: 23456
         add: Test 23456
+
 # for the test_routerManager
 routerManager_test:
   router:
@@ -144,3 +145,60 @@ regexFilter_test:
         regex: "(0000001|0000002|0000003)"
 
 regexFilter_empty: []
+
+# for the test_descriptor
+descriptor_regex:
+  - scanField: tone
+    descrField: description
+    descriptions:
+      - for: 12345
+        add: Exact 12345
+      - for: '123.*'
+        add: Regex 123
+        isRegex: true
+      - for: '890(1[1-9]|2[0-9])'
+        add: 'Wache \1'
+        isRegex: true
+      - for: '891(1[1-9])'
+        add: "Wache \\1 (BF)"
+        isRegex: true
+      - for: '[invalid'
+        add: Invalid regex
+        isRegex: true
+      - for: '777.*'
+        add: String flag
+        isRegex: 'true'
+      - for: '05678'
+        add: Leading zero
+      - for: 55555
+        add: 'Alarm {MODE} {TONE}'
+
+descriptor_multi:
+  - scanField: tone
+    descrField: description
+    descriptions:
+      - for: 12345
+        add: Test 12345
+  - scanField: status
+    descrField: statusText
+    wildcard: "{STATUSTEXT}"
+    descriptions:
+      - for: 3
+        add: Einsatz Ab
+
+descriptor_csv:
+  - scanField: tone
+    descrField: description
+    csvPath: test/test_descriptor.csv
+    descriptions:
+      - for: '1234.*'
+        add: YAML regex
+        isRegex: true
+
+descriptor_csvNotFound:
+  - scanField: tone
+    descrField: description
+    csvPath: test/notExisting.csv
+    descriptions:
+      - for: 12345
+        add: YAML 12345

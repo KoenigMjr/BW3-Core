@@ -1,0 +1,7 @@
+for,add,isRegex
+11111,CSV 11111,false
+00123,CSV leading zero,false
+'00456',CSV quoted,false
+^3456[0-9]$,CSV regex,true
+12345,CSV exact 12345,false
+23456,CSV without flag
