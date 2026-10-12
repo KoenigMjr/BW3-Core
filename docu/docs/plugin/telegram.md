@@ -5,7 +5,7 @@
 
 Dieses Plugin ermöglicht den Versand von Telegram-Nachrichten für verschiedene Alarmierungsarten. Um eine hohe Stabilität im BOS-Betrieb zu gewährleisten, erfolgt der Versand asynchron über eine interne Warteschlange (Queue) mit Überlastschutz.
 
-Das Plugin hält die Vorgaben der Telegram API automatisch ein: Eine integrierte Retry-Logik mit exponentiellem Backoff verhindert Nachrichtenverluste bei temporären Netzwerkproblemen. Zudem werden Nachrichten, die das Telegram-Limit von 4.096 Zeichen überschreiten, automatisch gekürzt. Wenn Standortdaten (lat/lon) vorhanden sind, kann das Plugin diese als native Karte senden (erfordert [Geocoding-Modul](../modul/geocoding.md) und Aktivierung via coordinates).
+Das Plugin hält die Vorgaben der Telegram API automatisch ein: Eine integrierte Retry-Logik mit exponentiellem Backoff verhindert Nachrichtenverluste bei temporären Netzwerkproblemen. Jeder Empfänger (Chat-ID) hat dabei eine eigene Warteschlange: Eine fehlgeschlagene Nachricht wird wiederholt, bevor die nächste Nachricht an diesen Empfänger gesendet wird, so bleibt die Reihenfolge erhalten. Ist ein Empfänger nicht erreichbar, werden die Nachrichten an die anderen Empfänger trotzdem sofort zugestellt. Zudem werden Nachrichten, die das Telegram-Limit von 4.096 Zeichen überschreiten, automatisch gekürzt. Wenn Standortdaten (lat/lon) vorhanden sind, kann das Plugin diese als native Karte senden (erfordert [Geocoding-Modul](../modul/geocoding.md) und Aktivierung via coordinates).
 
 ## Unterstützte Alarmtypen
 - FMS
@@ -81,6 +81,18 @@ Der Versand von Standorten ist standardmäßig deaktiviert (`coordinates: false`
 
 **Verhalten beim Standortversand:**
 Bei aktivierten Koordinaten sendet das Plugin zusätzlich zum Alarmtext eine native Telegram-Karte als separate Nachricht. Es sind keine Wildcards im Nachrichtentext erforderlich; die Karte wird automatisch unter dem Text gepostet.
+
+### Wiederholungen bei Fehlern (max_retries, initial_delay, max_delay)
+Kann eine Nachricht nicht zugestellt werden (z. B. Internet nicht erreichbar oder Telegram-Server überlastet), wird sie wiederholt. Die Wartezeit zwischen den Versuchen verdoppelt sich dabei, bis `max_delay` erreicht ist. Ab dann hat jeder weitere Versuch den Abstand `max_delay`. Nach `max_retries` Wiederholungen wird die Nachricht verworfen.
+
+Mit den Standardwerten (`initial_delay: 2`, `max_delay: 300`, `max_retries: 5`) wartet das Plugin vor den Wiederholungen 2, 4, 8, 16 und 32 Sekunden. Bei mehr Wiederholungen ginge es mit 64, 128 und 256 Sekunden weiter und danach alle 300 Sekunden.
+
+Wichtig dabei:
+
+- Wiederholt wird immer nur die vorderste Nachricht eines Empfängers. Die Nachrichten dahinter warten und verbrauchen dabei keine eigenen Versuche.
+- Die Wartezeit gilt pro Empfänger und wird erst nach der nächsten erfolgreich zugestellten Nachricht wieder auf `initial_delay` zurückgesetzt. Nach einem längeren Ausfall kann es daher bis zu `max_delay` dauern, bis die erste Nachricht zugestellt wird. Wer das schneller möchte, setzt `max_delay` kleiner.
+- Meldet Telegram eine Überlastung (HTTP 429), wird die von Telegram vorgegebene Wartezeit verwendet.
+- Fehler, die eine Wiederholung nicht beheben kann (z. B. falscher `botToken` oder falsche Chat-ID), werden nicht wiederholt. Die Nachricht wird sofort verworfen und im Log vermerkt.
 
 ---
 ## Modul Abhängigkeiten
