@@ -15,7 +15,7 @@ Mit diesem Modul können einem Paket die Koordinaten eines Ortes oder einer Adre
 |----|------------|-------|
 apiProvider|Der Provider für das Geocoding|
 apiToken|Der Api-Token fuer die Geocoding-Api|
-geoRegex|Regex Capture-Group zum Herausfiltern der Adresse|
+regex|Regex mit Capture-Group zum Herausfiltern der Adresse aus der Nachricht (erste Gruppe)|
 
 #### Verfügbare Geocoding Provider
 |Name|Einstellungswert|
@@ -31,7 +31,7 @@ geoRegex|Regex Capture-Group zum Herausfiltern der Adresse|
     config:
       apiProvider: "{{ Provider für Geocoding }}"
       apiToken: "{{ API-Key für Provider }}"
-      regex: "((?:[^ ]*,)*?)"
+      regex: "Adresse: ([^;]+)"  # Beispiel: Adresse steht nach "Adresse:" bis zum nächsten ";"
 ```
 
 ---

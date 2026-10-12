@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        geocoding.py
-@date:        22.02.2020
+@date:        12.10.2026
 @author:      Jan Speller
 @description: Geocoding Module
 """
@@ -32,6 +32,12 @@ class BoswatchModule(ModuleBase):
         r"""!Do not change anything here!"""
         super().__init__(__name__, config)  # you can access the config class on 'self.config'
 
+    def onLoad(self):
+        r"""!Called by import of the plugin"""
+        self.registerWildcard("{ADDRESS}", "address")
+        self.registerWildcard("{LAT}", "lat")
+        self.registerWildcard("{LON}", "lon")
+
     def doWork(self, bwPacket):
         r"""!start an run of the module.
 
@@ -46,16 +52,20 @@ class BoswatchModule(ModuleBase):
 
         @param bwPacket: A BOSWatch packet instance"""
         try:
-            addressArray = re.search(self.config.get("regex"), bwPacket.get("message"))
+            message = bwPacket.get("message")
+            if not message:
+                logging.debug("No message in packet, skipping geocoding")
+                return bwPacket
+
+            addressArray = re.search(self.config.get("regex"), message)
             provider = self.config.get("apiProvider")
 
-            if addressArray[1] is None:
+            if addressArray is None or addressArray[1] is None:
                 logging.info("No address found, skipping geocoding")
                 return bwPacket
 
             address = addressArray[1]
             bwPacket.set("address", address)
-            self.registerWildcard("{ADDRESS}", "address")
             logging.info("Found address: '" + address + "' in packet")
 
             if "mapbox" == provider:
@@ -67,12 +77,14 @@ class BoswatchModule(ModuleBase):
             else:
                 return bwPacket
 
+            if not g.latlng:
+                logging.warning("No coordinates found for address: '" + address + "'")
+                return bwPacket
+
             (lat, lon) = g.latlng
             logging.info("Found following coordinates for address: [lat=" + str(lat) + ", lon=" + str(lon) + "]")
             bwPacket.set("lat", lat)
             bwPacket.set("lon", lon)
-            self.registerWildcard("{LAT}", "lat")
-            self.registerWildcard("{LON}", "lon")
 
             return bwPacket
         except Exception as e:
