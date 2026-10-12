@@ -118,6 +118,24 @@ routerManager_unknownRouter:
         - type: router
           res: notExistingRouter
 
+routerManager_saveStats:
+  server:
+    logging: true
+  router:
+    - name: Router1
+      route:
+        - type: module
+          res: template_module
+          name: Test Module
+        - type: plugin
+          res: template_plugin
+        - type: router
+          res: Router2
+    - name: Router2
+      route:
+        - type: module
+          res: template_module
+
 # for the test_modeFilter
 modeFilter_test:
   allowed:

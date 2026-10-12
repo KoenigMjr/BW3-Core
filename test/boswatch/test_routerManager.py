@@ -147,3 +147,51 @@ def test_cleanup(makeBuiltRouterManager):
     assert module in ModuleBase._modulesActive
     makeBuiltRouterManager.cleanup()
     assert module not in ModuleBase._modulesActive
+
+
+def test_saveStats(getConfig, makeRouterManager, makePacket, tmp_path, monkeypatch):
+    r"""!With enabled logging the statistics are saved to a file after the routers run"""
+    assert makeRouterManager.buildRouters(getConfig.get("routerManager_saveStats")) is True
+    monkeypatch.chdir(tmp_path)
+    makeRouterManager.runRouters("Router1", makePacket)
+    statsFile = tmp_path / ("stats_" + str(makeRouterManager._startTime) + ".txt")
+    assert statsFile.read_text() == ("[Router1]\n"
+                                     " - Route points:    3\n"
+                                     " - Runs:            1\n"
+                                     "[+] Test Module\n"
+                                     " - Runs:            1\n"
+                                     " - Run errors:      0\n"
+                                     "[+] template_plugin\n"
+                                     " - Runs:            1\n"
+                                     " - Setup errors:    0\n"
+                                     " - Alarm errors:    0\n"
+                                     " - Teardown errors: 0\n"
+                                     "[+] Router2\n"
+                                     "\n"
+                                     "[Router2]\n"
+                                     " - Route points:    1\n"
+                                     " - Runs:            1\n"
+                                     "[+] template_module\n"
+                                     " - Runs:            1\n"
+                                     " - Run errors:      0\n"
+                                     "\n")
+    makeRouterManager.cleanup()
+
+
+def test_saveStatsOverwrite(getConfig, makeRouterManager, makePacket, tmp_path, monkeypatch):
+    r"""!The statistics file is overwritten with the current values on every run"""
+    assert makeRouterManager.buildRouters(getConfig.get("routerManager_saveStats")) is True
+    monkeypatch.chdir(tmp_path)
+    makeRouterManager.runRouters("Router2", makePacket)
+    makeRouterManager.runRouters("Router2", makePacket)
+    assert len(list(tmp_path.iterdir())) == 1
+    statsLines = (tmp_path / ("stats_" + str(makeRouterManager._startTime) + ".txt")).read_text().splitlines()
+    assert statsLines.count(" - Runs:            2") == 2
+    makeRouterManager.cleanup()
+
+
+def test_saveStatsDisabled(makeBuiltRouterManager, makePacket, tmp_path, monkeypatch):
+    r"""!Without enabled logging no statistics file is written"""
+    monkeypatch.chdir(tmp_path)
+    makeBuiltRouterManager.runRouters("Router1", makePacket)
+    assert list(tmp_path.iterdir()) == []
