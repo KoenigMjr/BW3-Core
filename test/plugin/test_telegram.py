@@ -382,11 +382,11 @@ def test_workerQueueFull(scriptedTelegramApi, monkeypatch):
     monkeypatch.setattr(requests, "post", blockingPost)
     sender = TelegramSender("testToken", [111])
     sender.send_message("first")
-    while not sender.msg_queue.empty():
+    while not sender.msg_queues[111].empty():
         time.sleep(0.01)  # wait until the worker took the first message
     for number in range(101):
         sender.send_message(str(number))
-    assert sender.msg_queue.full()
+    assert sender.msg_queues[111].full()
     releaseApi.set()
     assert waitForRequests(sentRequests, 101)
     time.sleep(0.1)
@@ -410,3 +410,69 @@ def test_workerShutdownSendsQueue(scriptedTelegramApi, monkeypatch):
         sender.send_message(text)
     sender.shutdown()
     assert [data["text"] for sendTime, data in sentRequests] == ["first", "second", "third"]
+
+
+def test_senderWorkerPerChat(fakeTelegramApi):
+    r"""!Every chat gets its own worker - a chat id configured twice gets only one"""
+    sender = TelegramSender("testToken", [111, 222, 111])
+    assert sorted(sender._workers.keys()) == [111, 222]
+    assert all(worker.is_alive() for worker in sender._workers.values())
+    sender.shutdown()
+    assert not any(worker.is_alive() for worker in sender._workers.values())
+
+
+def test_deliveryOrderAfterRetry(scriptedTelegramApi):
+    r"""!A failed message is retried before the next messages - the order is kept"""
+    sentRequests, script = scriptedTelegramApi
+    script.extend([FakeResponse(500), FakeResponse(500)])
+    sender = TelegramSender("testToken", [111], initial_delay=0.01)
+    for text in ["first", "second", "third"]:
+        sender.send_message(text)
+    assert waitForRequests(sentRequests, 5)
+    sender.shutdown()
+    assert [data["text"] for sendTime, data in sentRequests] == ["first", "first", "first", "second", "third"]
+
+
+def test_deliveryWaitingMessagesKeepRetries(scriptedTelegramApi):
+    r"""!Messages waiting behind a failed message do not use up their retries"""
+    sentRequests, script = scriptedTelegramApi
+    script.extend([FakeResponse(500)] * 3)
+    sender = TelegramSender("testToken", [111], max_retries=3, initial_delay=0.01)
+    sender.send_message("first")
+    sender.send_message("second")
+    assert waitForRequests(sentRequests, 5)
+    sender.shutdown()
+    assert [data["text"] for sendTime, data in sentRequests] == ["first", "first", "first", "first", "second"]
+
+
+def test_deliveryOtherChatNotBlocked(monkeypatch):
+    r"""!A not reachable chat does not delay the messages to the other chats"""
+    sentRequests = []
+
+    def fakePost(url, data=None, timeout=None):
+        sentRequests.append(data["chat_id"])
+        return FakeResponse(500 if data["chat_id"] == 111 else 200)
+
+    monkeypatch.setattr(requests, "post", fakePost)
+    sender = TelegramSender("testToken", [111, 222], initial_delay=30)
+    sender.send_message("first")
+    sender.send_message("second")
+    endTime = time.time() + 5
+    while sentRequests.count(222) < 2 and time.time() < endTime:
+        time.sleep(0.01)
+    sender.shutdown()
+    assert sentRequests.count(222) == 2
+    assert sentRequests.count(111) == 1
+
+
+def test_shutdownInterruptsRetry(scriptedTelegramApi):
+    r"""!A worker which is waiting for a retry does not delay the shutdown"""
+    sentRequests, script = scriptedTelegramApi
+    script.extend([FakeResponse(500)] * 10)
+    sender = TelegramSender("testToken", [111], initial_delay=60)
+    sender.send_message("Test")
+    assert waitForRequests(sentRequests, 1)
+    startTime = time.time()
+    sender.shutdown()
+    assert time.time() - startTime < 7
+    assert not sender._workers[111].is_alive()
