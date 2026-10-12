@@ -39,3 +39,67 @@ descriptor_test:
         add: Test 12345
       - for: 23456
         add: Test 23456
+# for the test_routerManager
+routerManager_test:
+  router:
+    - name: Router1
+      route:
+        - type: module
+          res: template_module
+          name: Test Module
+        - type: plugin
+          res: template_plugin
+        - type: router
+          res: Router2
+    - name: Router2
+      route:
+        - type: module
+          res: template_module
+
+routerManager_duplicateName:
+  router:
+    - name: Router1
+      route:
+        - type: module
+          res: template_module
+    - name: Router1
+      route:
+        - type: module
+          res: template_module
+
+routerManager_missingName:
+  router:
+    - route:
+        - type: module
+          res: template_module
+
+routerManager_missingRoute:
+  router:
+    - name: Router1
+
+routerManager_missingType:
+  router:
+    - name: Router1
+      route:
+        - res: template_module
+
+routerManager_unknownType:
+  router:
+    - name: Router1
+      route:
+        - type: unknown
+          res: template_module
+
+routerManager_moduleNotFound:
+  router:
+    - name: Router1
+      route:
+        - type: module
+          res: notExistingModule
+
+routerManager_unknownRouter:
+  router:
+    - name: Router1
+      route:
+        - type: router
+          res: notExistingRouter
