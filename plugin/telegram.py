@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        telegram.py
-@date:        17.01.2026
+@date:        12.10.2026
 @author:      Claus Schichl
 @description: Telegram-Plugin
 """
@@ -39,18 +39,26 @@ class TelegramSender:
         self.max_retries = max_retries if max_retries is not None else 5
         self.initial_delay = initial_delay if initial_delay is not None else 2
         self.max_delay = max_delay if max_delay is not None else 300
-        self.msg_queue = queue.Queue(maxsize=100)  # max 100 messages
         self.parse_mode = parse_mode
 
-        # Start Worker Thread
-        self._worker = threading.Thread(target=self._worker_loop, daemon=True)
-        self._worker.start()
+        # one queue and one worker thread per chat:
+        # - the messages of a chat are sent in the right order, also after a retry
+        # - a failing chat does not delay the messages to the other chats
+        self.msg_queues = {}
+        self._workers = {}
+        for chat_id in self.chat_ids:
+            if chat_id in self.msg_queues:
+                continue  # a chat id configured twice gets only one worker
+            self.msg_queues[chat_id] = queue.Queue(maxsize=100)  # max 100 messages per chat
+            self._workers[chat_id] = threading.Thread(target=self._worker_loop, args=(chat_id,),
+                                                      name=f"Telegram({chat_id})", daemon=True)
+            self._workers[chat_id].start()
 
     def send_message(self, text):
         clean_text = self._escape_text(text, self.parse_mode)
-        for chat_id in self.chat_ids:
+        for chat_id in self.msg_queues:
             try:
-                self.msg_queue.put(("text", chat_id, clean_text, 0), block=False)
+                self.msg_queues[chat_id].put(("text", clean_text), block=False)
             except queue.Full:
                 logger.error(f"Message queue full for chat_id {chat_id}, message discarded: {clean_text[:50]}...")
 
@@ -67,9 +75,9 @@ class TelegramSender:
             logger.error(f"Invalid coordinate format: {e}, location skipped")
             return
 
-        for chat_id in self.chat_ids:
+        for chat_id in self.msg_queues:
             try:
-                self.msg_queue.put(("location", chat_id, {"latitude": lat, "longitude": lon}, 0), block=False)
+                self.msg_queues[chat_id].put(("location", {"latitude": lat, "longitude": lon}), block=False)
             except queue.Full:
                 logger.error(f"Location queue full for chat_id {chat_id}, location discarded: {lat}, {lon}")
 
@@ -100,28 +108,59 @@ class TelegramSender:
             # See: https://core.telegram.org/bots/api#markdownv2-style
             escape_chars = r'_*[]()~`>#+-=|{}.!'
             text = "".join(['\\' + char if char in escape_chars else char for char in text])
-        return text[:4090] + "[...]" if len(text) > 4096 else text
+        return TelegramSender._shorten_text(text, parse_mode)
 
-    def _worker_loop(self):
+    @staticmethod
+    def _shorten_text(text, parse_mode):
+        r"""!Shorten an escaped text to the telegram limit of 4096 characters
+        without cutting an escape sequence or an HTML entity"""
+        if len(text) <= 4096:
+            return text
+        suffix = "\\[\\.\\.\\.\\]" if parse_mode == "MarkdownV2" else "[...]"
+        text = text[:4096 - len(suffix)]
+        if parse_mode == "MarkdownV2":
+            # an odd number of backslashes at the end would escape the suffix
+            if (len(text) - len(text.rstrip("\\"))) % 2:
+                text = text[:-1]
+        elif parse_mode == "HTML":
+            # remove a cut HTML entity at the end
+            lastAmp = text.rfind("&")
+            if lastAmp != -1 and ";" not in text[lastAmp:]:
+                text = text[:lastAmp]
+        return text + suffix
+
+    def _worker_loop(self, chat_id):
+        r"""!Send the messages of one chat one after another
+
+        A failed message stays at the head of the queue and is retried until it is
+        sent, it fails permanently or max_retries is reached - so the order is kept.
+        The waiting time between the retries grows exponentially while the chat
+        is not reachable and is reset after the next successful message."""
+        msg_queue = self.msg_queues[chat_id]
         delay = self.initial_delay
-        while not self._stop_event.is_set():
-            try:
-                msg_type, chat_id, content, retry_count = self.msg_queue.get(timeout=1)
-                success, permanent_failure, custom_delay, error_details = self._send_to_telegram(msg_type, chat_id, content)
+        while True:
+            item = msg_queue.get()  # blocking without timeout - no cpu usage while idle
+            if item is None:
+                return  # shutdown: all messages before were sent
+            msg_type, content = item
+            retry_count = 0
+            while True:
+                try:
+                    success, permanent_failure, custom_delay, error_details = self._send_to_telegram(msg_type, chat_id, content)
+                except Exception as e:
+                    success, permanent_failure, custom_delay, error_details = False, False, None, str(e)
                 if success:
                     delay = self.initial_delay
-                elif permanent_failure or retry_count >= self.max_retries:
+                    break
+                if permanent_failure or retry_count >= self.max_retries:
                     logger.warning(f"Discarding message for {chat_id}: {error_details}")
-                else:
-                    wait_time = custom_delay if custom_delay is not None else delay
-                    time.sleep(wait_time)
-                    self.msg_queue.put((msg_type, chat_id, content, retry_count + 1))
-                    delay = min(delay * 2, self.max_delay)
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Error in Telegram worker: {e}")
-                time.sleep(5)
+                    break
+                wait_time = custom_delay if custom_delay is not None else delay
+                if self._stop_event.wait(wait_time):
+                    logger.warning(f"Discarding message for {chat_id}: shutdown while waiting for retry")
+                    return
+                retry_count += 1
+                delay = min(delay * 2, self.max_delay)
 
     def _send_to_telegram(self, msg_type, chat_id, content):
         url = f"https://api.telegram.org/bot{self.bot_token}/"
@@ -152,16 +191,22 @@ class TelegramSender:
             return False, False, None, str(e)
 
     def shutdown(self):
-        r"""Graceful shutdown with queue draining"""
+        r"""!Graceful shutdown - the workers send the remaining messages (max. 5 sec.)"""
         logger.info("Shutting down Telegram sender...")
-        self._stop_event.set()
         timeout = time.time() + 5
-        while not self.msg_queue.empty() and time.time() < timeout:
-            time.sleep(0.1)
-        remaining = self.msg_queue.qsize()
+        for chat_id, msg_queue in self.msg_queues.items():
+            try:
+                msg_queue.put(None, timeout=max(0, timeout - time.time()))  # stop mark behind the last message
+            except queue.Full:
+                pass
+        for worker in self._workers.values():
+            worker.join(timeout=max(0, timeout - time.time()))
+        self._stop_event.set()  # interrupt a worker which is still waiting for a retry
+        for worker in self._workers.values():
+            worker.join(timeout=1)
+        remaining = sum(1 for msg_queue in self.msg_queues.values() for item in list(msg_queue.queue) if item is not None)
         if remaining > 0:
             logger.warning(f"{remaining} messages in queue discarded during shutdown")
-        self._worker.join(timeout=5)
 
 
 # ===========================
