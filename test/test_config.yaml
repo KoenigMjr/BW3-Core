@@ -236,3 +236,39 @@ geocoding_unknownProvider:
   apiProvider: unknown
   apiToken: testToken
   regex: "Adresse: (.*)"
+
+# for the test_telegram
+telegram_test:
+  botToken: testToken
+  chatIds:
+    - 111
+    - 222
+  message_fms: "FMS {FMS}"
+  message_zvei: "ZVEI {TONE}"
+  message_msg: "MSG {MSG}"
+  coordinates: true
+
+telegram_default:
+  botToken: testToken
+  chatIds:
+    - 111
+
+telegram_startup:
+  botToken: testToken
+  chatIds:
+    - 111
+  startup_message: "Server up and running!"
+
+telegram_html:
+  botToken: testToken
+  chatIds:
+    - 111
+  parse_mode: "HTML"
+  message_pocsag: "<b>{RIC}</b> {MSG}"
+
+telegram_missingToken:
+  chatIds:
+    - 111
+
+telegram_missingChatIds:
+  botToken: testToken
