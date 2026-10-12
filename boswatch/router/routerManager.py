@@ -52,7 +52,7 @@ class RouterManager:
             if router.get("name") is None or router.get("route") is None:
                 logging.error("name or route not found in router: %s", router)
                 return False
-            if router.get("name") in self._routerDict:
+            if router.get("name") in routerDict_tmp:
                 logging.error("duplicated router name: %s", router.get("name"))
                 return False
             routerDict_tmp[router.get("name")] = Router(router.get("name"))
@@ -89,6 +89,9 @@ class RouterManager:
                                                                   loadedClass._cleanup))
 
                     elif routeType == "router":
+                        if routeRes not in routerDict_tmp:
+                            logging.error("unknown router '%s' in %s", routeRes, route)
+                            return False
                         routerDict_tmp[routerName].addRoute(Route(routeName, routerDict_tmp[routeRes].runRouter))
 
                     else:
