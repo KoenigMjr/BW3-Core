@@ -272,3 +272,10 @@ telegram_missingToken:
 
 telegram_missingChatIds:
   botToken: testToken
+
+# for the test_mysql
+mysql_test:
+  host: testHost
+  user: testUser
+  password: testPassword
+  database: testDatabase
