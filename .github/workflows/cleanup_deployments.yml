@@ -1,0 +1,57 @@
+# Deletes old GitHub Pages deployments (the list under "Deployments" / environment "github-pages").
+# Only started by hand: Actions -> "cleanup_deployments" -> Run workflow (the button only shows up once this file is
+# on the default branch).
+#
+# A deployment is only deleted if ALL of the following apply:
+#   - it is not among the newest "keep_last" deployments,
+#   - it is not the newest successful deployment (the live page),
+#   - it is finished (never a queued, pending or running deployment).
+# GitHub only deletes inactive deployments, so the script first marks them inactive, then deletes them.
+# The live page itself is not touched. The rules live with tests in .github/scripts/prune_deployments.py
+# (test/test_prune_deployments.py).
+# At most 100 deployments are deleted per start (GitHub API rate limit). If more are left, the summary says so:
+# start again.
+#
+# "dry_run" is preselected: nothing is changed, the log only shows what would be deleted.
+# Check that first, then start again with "dry_run" unticked.
+name: cleanup_deployments
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only show what would be deleted (nothing is changed)"
+        type: boolean
+        default: true
+      keep_last:
+        description: "Keep this many newest deployments (at least 1)"
+        type: number
+        default: 5
+
+# deployments: write allows marking inactive and deleting, contents: read checking out the script.
+permissions:
+  deployments: write
+  contents: read
+
+# Never two cleanups at the same time. Deliberately not the "pages" group of build_docs.yml:
+# a waiting cleanup would cancel a waiting docs build there.
+concurrency:
+  group: cleanup-deployments
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete old deployments
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Delete old deployments
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        KEEP_LAST: ${{ inputs.keep_last }}
+      run: |
+        args=(--repo "$GITHUB_REPOSITORY" --environment github-pages --keep-last "$KEEP_LAST" --max-deletions 100)
+        if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+        python3 .github/scripts/prune_deployments.py "${args[@]}"
