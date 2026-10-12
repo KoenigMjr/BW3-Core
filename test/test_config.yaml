@@ -31,6 +31,19 @@ list1:
     - three
   - string1
 
+# for the test_doubleFilter
+doubleFilter_test:
+  ignoreTime: 10
+  maxEntry: 3
+
+doubleFilter_pocsagFields:
+  pocsagFields:
+    - ric
+    - message
+
+doubleFilter_default:
+  testKey: testValue
+
 descriptor_test:
   - scanField: tone
     descrField: description
