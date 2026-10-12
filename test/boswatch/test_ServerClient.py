@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_ServerClient.py
-@date:        10.12.2017
+@date:        12.10.2026
 @author:      Bastian Schroll
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -164,8 +164,7 @@ def test_serverInvalidHeaderClosesConnectionOnly(getRunningServer, caplog):
     assert normalClient.disconnect()
 
 
-@pytest.mark.skip("needs fixture for more than one client")
-def test_clientMultiCommunicate(getServer):
+def test_clientMultiCommunicate(getRunningServer):
     r"""!Try to send data to the server with 3 clients and check on '[ack]'"""
     # connect all
     testClient1 = TCPClient()
@@ -236,7 +235,6 @@ def test_serverStopsWhileConnected(getRunningServer, getClient):
     assert timeout
 
 
-@pytest.mark.skip("needs fixture for more than one client")
 def test_serverGetOutput(getRunningServer):
     r"""!Send data to server with 2 clients, check '[ack]' and data on server queue"""
     # connect all
