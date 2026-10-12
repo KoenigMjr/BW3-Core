@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        mysql.py
-@date:        12.10.2026
+@date:        14.10.2026
 @author:      Jan Speller
 @description: Mysql Plugin
 """
@@ -21,11 +21,31 @@ from boswatch.utils import paths
 # ###################### #
 # Custom plugin includes #
 import mysql.connector
+import re
 from datetime import datetime
 
 # ###################### #
 
 logging.debug("- %s loaded", __name__)
+
+# packet fields which are already saved in the fixed columns of the table
+FIXED_FIELDS = ["timestamp", "mode", "ric", "subric", "subricText", "message", "bitrate", "tone",
+                "fms", "service", "country", "location", "vehicle", "status", "direction", "directionText", "tacticalInfo",
+                "serverName", "serverVersion", "serverBuildDate", "serverBranch",
+                "clientName", "clientIP", "clientVersion", "clientBuildDate", "clientBranch",
+                "inputSource", "frequency"]
+
+# columns of the table which are created by init_db.sql - never used for additional fields
+FIXED_COLUMNS = ["id", "packetTimestamp", "packetMode",
+                 "pocsag_ric", "pocsag_subric", "pocsag_subricText", "pocsag_message", "pocsag_bitrate",
+                 "zvei_tone", "fms_fms", "fms_service", "fms_country", "fms_location", "fms_vehicle", "fms_status",
+                 "fms_direction", "fms_directionText", "fms_tacticalInfo",
+                 "serverName", "serverVersion", "serverBuildDate", "serverBranch",
+                 "clientName", "clientIP", "clientVersion", "clientBuildDate", "clientBranch",
+                 "inputSource", "frequency"]
+
+# allowed names for additional columns (column names can not be passed as sql parameters)
+COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
 class BoswatchPlugin(PluginBase):
@@ -46,6 +66,10 @@ class BoswatchPlugin(PluginBase):
 
         self.connection = None
         self.cursor = None
+        self.columns = set()  # lower case names of all columns of the table
+        self.skippedFields = set()  # additional fields which can not be saved - warn only once
+        self.allFields = self.config.get("allFields", default=False) is True  # save all additional fields
+        self.additionalFields = self._getConfiguredFields()  # names of the additional fields to save
         self._connect()  # trying to establish connection, no crash if fail
 
     def setup(self):
@@ -190,6 +214,7 @@ class BoswatchPlugin(PluginBase):
     def teardown(self):
         r"""!Called after alarm"""
         if self.connection and self.cursor:
+            self._storeAdditionalFields()
             try:
                 self.connection.commit()
                 self.cursor.close()
@@ -230,7 +255,17 @@ class BoswatchPlugin(PluginBase):
                             check_cursor.execute(clean_stmnt)
                             self.connection.commit()
 
+            check_cursor.execute("SHOW COLUMNS FROM boswatch")
+            self.columns = {str(row[0]).lower() for row in check_cursor.fetchall()}
+
             check_cursor.close()
+            self.connection.get_warnings = True  # warnings of the database are written to the log
+
+            # the columns of configured additional fields are added already now, so a missing
+            # right to add columns is noticed while starting and not at the first alarm
+            for fieldName in self.additionalFields:
+                if fieldName not in FIXED_FIELDS:
+                    self._ensureColumn(fieldName)
             # self.cursor intentionally remains None here!
             logging.info("MySQL connection established.")
             return True
@@ -239,3 +274,86 @@ class BoswatchPlugin(PluginBase):
             self.connection = None
             self.cursor = None  # To be on the safe side, zero it
             return False
+
+    def _getConfiguredFields(self):
+        r"""!Read the names of the additional fields from the config
+
+        additionalFields can be a comma separated string or a list.
+        With allFields: true the list is not needed and ignored.
+        @return list of field names (empty if nothing is configured)"""
+        configFields = self.config.get("additionalFields", default="")
+        if isinstance(configFields, str):
+            configFields = configFields.split(",")
+        fieldNames = [str(fieldName).strip() for fieldName in configFields if str(fieldName).strip()]
+        if self.allFields and fieldNames:
+            logging.warning("MySQL: allFields is set - additionalFields is ignored")
+            return []
+        return fieldNames
+
+    def _getAdditionalFields(self):
+        r"""!Return the additional fields of the current packet which should be saved
+
+        With allFields all fields of the packet which are not saved in a fixed column,
+        otherwise only the configured fields.
+        @return dict with field name and value"""
+        packetFields = vars(self._bwPacket)["_packet"]  # all fields of the packet (see module packetDump)
+        if self.allFields:
+            fieldNames = [fieldName for fieldName in packetFields if fieldName not in FIXED_FIELDS]
+        else:
+            fieldNames = self.additionalFields
+        return {fieldName: str(packetFields[fieldName]) for fieldName in fieldNames
+                if fieldName in packetFields and fieldName not in FIXED_FIELDS}
+
+    def _ensureColumn(self, fieldName):
+        r"""!Check that a column for the field exists and add it if not
+
+        @param fieldName: name of the packet field
+        @return True if the column can be used"""
+        if fieldName in self.skippedFields:
+            return False
+        if fieldName.lower() in [column.lower() for column in FIXED_COLUMNS]:
+            logging.warning("MySQL: field '%s' not saved - the name is used by a fixed column", fieldName)
+            self.skippedFields.add(fieldName)
+            return False
+        if fieldName.lower() in self.columns:
+            return True
+        if not COLUMN_NAME_PATTERN.match(fieldName):
+            logging.warning("MySQL: field '%s' not saved - only letters, digits and _ are allowed in column names", fieldName)
+            self.skippedFields.add(fieldName)
+            return False
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("ALTER TABLE boswatch ADD COLUMN `" + fieldName + "` TEXT NULL DEFAULT NULL")
+            self._logWarnings(cursor)
+            cursor.close()
+            self.columns.add(fieldName.lower())
+            logging.info("MySQL: added column '%s' to table boswatch", fieldName)
+            return True
+        except mysql.connector.Error as e:
+            logging.warning("MySQL: column for field '%s' could not be added: %s", fieldName, e)
+            self.skippedFields.add(fieldName)
+            return False
+
+    def _storeAdditionalFields(self):
+        r"""!Save the additional fields of the current packet in the row of the last insert"""
+        try:
+            rowId = self.cursor.lastrowid
+            self._logWarnings(self.cursor)  # warnings of the insert
+            if not rowId or self._bwPacket is None or not (self.allFields or self.additionalFields):
+                return
+            fields = {fieldName: value for fieldName, value in self._getAdditionalFields().items()
+                      if self._ensureColumn(fieldName)}
+            if not fields:
+                return
+            assignments = ", ".join("`" + fieldName + "` = %s" for fieldName in fields)
+            self.cursor.execute("UPDATE boswatch SET " + assignments + " WHERE id = %s",
+                                tuple(fields.values()) + (rowId,))
+            self._logWarnings(self.cursor)
+        except mysql.connector.Error as e:
+            logging.error("MySQL: additional fields could not be saved: %s", e)
+
+    @staticmethod
+    def _logWarnings(cursor):
+        r"""!Write the warnings of the last statement to the log"""
+        for level, code, message in cursor.fetchwarnings() or []:
+            logging.warning("MySQL %s %s: %s", level, code, message)
