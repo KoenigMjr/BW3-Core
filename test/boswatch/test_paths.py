@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_paths.py
-@date:        22.02.2017
+@date:        12.10.2026
 @author:      Bastian Schroll
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -27,23 +27,30 @@ def setup_function(function):
 
 
 def test_fileExists():
-    r"""!load a local config file"""
-    assert paths.fileExist("README.md")
+    r"""!Check an existing file"""
+    assert paths.fileExist(paths.ROOT_PATH + "README.md")
 
 
 def test_fileNotExists():
-    r"""!load a local config file"""
-    assert not paths.fileExist("notFound.txt")
+    r"""!Check a not existing file"""
+    assert not paths.fileExist(paths.ROOT_PATH + "notFound.txt")
 
 
-def test_makeDirNotExisting():
-    r"""!load a local config file"""
-    assert paths.makeDirIfNotExist("UnItTeSt")
-    os.removedirs("UnItTeSt")
+def test_testPath():
+    r"""!The test path contains the test config"""
+    assert paths.fileExist(paths.TEST_PATH + "test_config.yaml")
 
 
-def test_makeDirExisting():
-    r"""!load a local config file"""
-    paths.makeDirIfNotExist("UnItTeSt")
-    assert paths.makeDirIfNotExist("UnItTeSt")
-    os.removedirs("UnItTeSt")
+def test_makeDirNotExisting(tmp_path):
+    r"""!Create a not existing directory"""
+    dirPath = str(tmp_path / "UnItTeSt")
+    assert paths.makeDirIfNotExist(dirPath) == dirPath
+    assert os.path.isdir(dirPath)
+
+
+def test_makeDirExisting(tmp_path):
+    r"""!Create an already existing directory"""
+    dirPath = str(tmp_path / "UnItTeSt")
+    paths.makeDirIfNotExist(dirPath)
+    assert paths.makeDirIfNotExist(dirPath) == dirPath
+    assert os.path.isdir(dirPath)
