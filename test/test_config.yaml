@@ -279,3 +279,12 @@ mysql_test:
   user: testUser
   password: testPassword
   database: testDatabase
+
+mysql_additionalFields:
+  host: testHost
+  user: testUser
+  password: testPassword
+  database: testDatabase
+  additionalFields:
+    - description
+    - ric
