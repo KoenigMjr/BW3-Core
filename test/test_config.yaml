@@ -202,3 +202,19 @@ descriptor_csvNotFound:
     descriptions:
       - for: 12345
         add: YAML 12345
+
+# for the test_geocoding
+geocoding_mapbox:
+  apiProvider: mapbox
+  apiToken: testToken
+  regex: "Adresse: (.*)"
+
+geocoding_google:
+  apiProvider: google
+  apiToken: testToken
+  regex: "Adresse: (.*)"
+
+geocoding_unknownProvider:
+  apiProvider: unknown
+  apiToken: testToken
+  regex: "Adresse: (.*)"
