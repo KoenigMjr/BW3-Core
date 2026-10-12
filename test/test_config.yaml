@@ -103,3 +103,31 @@ routerManager_unknownRouter:
       route:
         - type: router
           res: notExistingRouter
+
+# for the test_modeFilter
+modeFilter_test:
+  allowed:
+    - fms
+    - zvei
+
+modeFilter_empty:
+  testKey: testValue
+
+# for the test_regexFilter
+regexFilter_test:
+  - name: "Zvei filter"
+    checks:
+      - field: tone
+        regex: "65[0-9]{3}"
+  - name: "FMS Stat 3"
+    checks:
+      - field: mode
+        regex: "fms"
+      - field: status
+        regex: "3"
+  - name: "Allowed RICs"
+    checks:
+      - field: ric
+        regex: "(0000001|0000002|0000003)"
+
+regexFilter_empty: []
