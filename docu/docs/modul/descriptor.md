@@ -44,10 +44,10 @@ Informationen zum Aufbau eines [BOSWatch Pakets](../develop/packet.md)
       descriptions:
         - for: 12345
           add: FF DescriptorTest
-        - for: '05678' # führende Nullen in '' !
+        - for: '05678' # führende Nullen in ''
           add: FF TestDescription
-        - for: '890(1[1-9]|2[0-9])' # Regex-Pattern in '' !
-          add: Feuerwehr Wache \\1 (BF)
+        - for: '890(1[1-9]|2[0-9])' # Regex-Pattern in ''
+          add: 'Feuerwehr Wache \1 (BF)' # Regex-Gruppe mit einem Backslash
           isRegex: true
     - scanField: status
       descrField: fmsStatDescr
@@ -63,8 +63,8 @@ Informationen zum Aufbau eines [BOSWatch Pakets](../develop/packet.md)
 **Wichtige Punkte für YAML-Regex:**
 - Apostroph: Regex-Pattern sollten in `'` stehen, um YAML-Parsing-Probleme zu vermeiden
 - isRegex-Flag: Muss explizit auf `true` gesetzt werden
-- Escaping: Backslashes müssen in YAML doppelt escaped werden (`\\1` statt `\1`)
-- Regex-Gruppen: Mit `\\1`, `\\2` etc. können Teile des Matches in der Beschreibung verwendet werden
+- Regex-Gruppen: Mit `\1`, `\2` etc. können Teile des Matches in der Beschreibung verwendet werden
+- Escaping: Ohne Anführungszeichen oder in einfachen Anführungszeichen `'` wird **ein** Backslash geschrieben (`'Wache \1'`). Nur in doppelten Anführungszeichen `"` muss der Backslash verdoppelt werden (`"Wache \\1"`)
 
 #### `csvPath:`
 
@@ -91,6 +91,8 @@ for,add,isRegex
 23456,FF B-Dorf
 ^3456[0-9]$,FF Grossdorf,true
 ```
+
+Regex-Gruppen werden in CSV-Dateien ebenfalls mit **einem** Backslash geschrieben, z. B. `^890(1[1-9])$,Feuerwehr Wache \1,true`.
 
 **Hinweis:** In CSV-Dateien müssen Werte mit führenden Nullen **nicht** in Anführungszeichen gesetzt werden (können aber, falls gewünscht). Die Spalte `isRegex` gibt an, ob der Wert in `for` als regulärer Ausdruck interpretiert werden soll (true/false). Falls kein Wert angegeben ist, ist die Paarung standardmäßig `false`, wie z.B. beim Eintrag der FF B-Dorf im obigen Beispiel.
 

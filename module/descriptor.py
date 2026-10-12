@@ -94,8 +94,8 @@ class BoswatchModule(ModuleBase):
                     clean_for = raw_for.strip().strip('"').strip("'")
                     entry = {
                         'for': clean_for,
-                        'add': row.get('add', '').strip(),
-                        'isRegex': row.get('isRegex', 'false').lower() == 'true'  # Default: False
+                        'add': (row.get('add') or '').strip(),
+                        'isRegex': (row.get('isRegex') or 'false').strip().lower() == 'true'  # Default: False
                     }
                     logging.debug("CSV row read: %s", row)
                     self.unified_cache[descriptor_key].append(entry)
