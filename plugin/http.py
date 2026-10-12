@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        http.py
-@date:        23.02.2020
+@date:        12.10.2026
 @author:      Jan Speller
 @description: Http Plugin
 """
@@ -20,7 +20,10 @@ from plugin.pluginBase import PluginBase
 # ###################### #
 # Custom plugin includes #
 import asyncio
+from urllib.parse import quote
 from aiohttp import ClientSession
+from boswatch import wildcard
+from boswatch.packet import Packet
 # ###################### #
 
 logging.debug("- %s loaded", __name__)
@@ -68,12 +71,22 @@ class BoswatchPlugin(PluginBase):
         """Parses wildcard urls and handles asynchronus requests
 
         @param urls: array of urls"""
-        urls = [self.parseWildcards(url) for url in urls]
+        if not urls:
+            logging.debug("no urls configured for this mode")
+            return
 
-        loop = asyncio.get_event_loop()
+        urls = [self._parseUrlWildcards(url) for url in urls]
+        asyncio.run(self._asyncRequests(urls))
 
-        future = asyncio.ensure_future(self._asyncRequests(urls))
-        loop.run_until_complete(future)
+    def _parseUrlWildcards(self, url):
+        r"""!Replace the wildcards in an url with url encoded values
+
+        @param url: url with wildcards
+        @return url with replaced and encoded wildcards"""
+        encodedPacket = Packet(str(self._bwPacket))
+        for fieldName, value in encodedPacket._packet.items():
+            encodedPacket._packet[fieldName] = quote(str(value), safe="")
+        return wildcard.replaceWildcards(url, encodedPacket)
 
     async def _asyncRequests(self, urls):
         """Handles asynchronus requests
@@ -86,8 +99,13 @@ class BoswatchPlugin(PluginBase):
                 task = asyncio.ensure_future(self._fetch(url, session))
                 tasks.append(task)
 
-            responses = asyncio.gather(*tasks)
-            await responses
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        errors = [response for response in responses if isinstance(response, Exception)]
+        for error in errors:
+            logging.error("request failed: %s: %s", type(error).__name__, error)
+        if errors:
+            raise RuntimeError("{} of {} requests failed".format(len(errors), len(urls)))
 
     async def _fetch(self, url, session):
         """Fetches requests
