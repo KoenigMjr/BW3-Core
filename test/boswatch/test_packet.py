@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_packet.py
-@date:        12.12.2017
+@date:        12.10.2026
 @author:      Bastian Schroll
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -58,3 +58,15 @@ def test_setGetField(buildPacket):
     r"""!set and get a field"""
     buildPacket.set("testField", "test")
     assert buildPacket.get("testField") == "test"
+
+
+def test_packetFromStringNoCode():
+    r"""!A packet string with executable code is not executed"""
+    with pytest.raises(ValueError):
+        Packet("{'mode': str('fms')}")
+
+
+def test_packetFromInvalidString():
+    r"""!A broken packet string raises an exception"""
+    with pytest.raises((ValueError, SyntaxError)):
+        Packet("{'mode': 'fms'")

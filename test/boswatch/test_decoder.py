@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_Decoder.py
-@date:        15.12.2017
+@date:        12.10.2026
 @author:      Bastian Schroll
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -102,3 +102,22 @@ def test_decoderFmsInvalid():
     assert Decoder.decode("""FMS: 43f314170000 (9=Rotkreuz       3=Bayern 1         Ort 0x25=037FZG  7141Sta  3=Einsatz Ab     0=FZG->LST 2=IV (mit NA,mit SIGNAL)) CRC correct""") is None
     assert Decoder.decode("""FMS: 14170000 (9=Rotkreuz       3=Bayern 1         Ort 0x25=037FZG  7141Status  3=Einsatz Ab     1=LST->FZG 2=III(mit NA,ohneSIGNAL)) CRC incorrect""") is None
     assert Decoder.decode("""FMS: 43f314170000 (9=Rotkreuz       3=Bayern 1         Ort 0x25=037FZG  7141Sta  3=Einsatz Ab     0=FZG->LST 2=IV (mit NA,mit SIGNAL)) CRC incorrect""") is None
+
+
+def test_decoderFmsTooShort():
+    r"""!Test FMS with correct CRC but too short data"""
+    assert Decoder.decode("FMS: 43f314170000 CRC correct") is None
+    assert Decoder.decode("FMS: CRC correct") is None
+
+
+def test_decoderZveiTooShort():
+    r"""!Test ZVEI with too short data"""
+    assert Decoder.decode("ZVEI1:") is None
+    assert Decoder.decode("ZVEI1: 1") is None
+
+
+def test_decoderPocsagEmptyText():
+    r"""!Test POCSAG with an empty text"""
+    bwPacket = Decoder.decode("POCSAG1200: Address: 1000000  Function: 1  Alpha:")
+    assert bwPacket.get("ric") == "1000000"
+    assert bwPacket.get("message") == ""

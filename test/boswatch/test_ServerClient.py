@@ -31,6 +31,16 @@ def setup_function(function):
     logging.debug("[TEST] %s.%s", function.__module__, function.__name__)
 
 
+def sendFragments(sock, fragments):
+    r"""!Send the fragments one after another with a short break in an own thread
+    - one thread for all fragments keeps the order of the fragments"""
+    def sendThread():
+        for fragment in fragments:
+            time.sleep(0.1)
+            sock.sendall(fragment)
+    threading.Thread(target=sendThread, daemon=True).start()
+
+
 @pytest.fixture
 def getClient():
     r"""!Build and serve a TCPCLient"""
@@ -56,6 +66,16 @@ def getRunningServer(getServer):
     logging.debug("stop server")
     assert getServer.stop()
     time.sleep(0.1)  # wait for safe stopped
+
+
+@pytest.fixture
+def getRawServer():
+    r"""!Build a raw listening socket which acts as server for the client tests"""
+    rawServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    rawServer.bind(("localhost", 0))
+    rawServer.listen(1)
+    yield rawServer
+    rawServer.close()
 
 
 def test_clientConnectFailed(getClient):
@@ -270,3 +290,81 @@ def sendThread():
 
     time.sleep(0.1)
     client.disconnect()
+
+
+def test_serverFragmentedPacket(getRunningServer):
+    r"""!Send header and payload in fragments - the server must put the complete payload in the queue"""
+    rawSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    rawSock.settimeout(3)
+    rawSock.connect(("localhost", 8080))
+    rawSock.sendall(b"8    ")
+    time.sleep(0.1)
+    rawSock.sendall(b"     test")
+    time.sleep(0.1)
+    rawSock.sendall(b"1234")
+    assert getRunningServer._alarmQueue.get(timeout=1)[1] == "test1234"
+    assert rawSock.recv(15) == b"5         [ack]"
+    rawSock.close()
+
+
+def test_serverKeepAliveAck(getRunningServer):
+    r"""!The server answers a keep-alive with an '[ack]' and does not put it in the queue"""
+    rawSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    rawSock.settimeout(3)
+    rawSock.connect(("localhost", 8080))
+    rawSock.sendall(b"12        <keep-alive>")
+    assert rawSock.recv(15) == b"5         [ack]"
+    assert getRunningServer._alarmQueue.empty()
+    rawSock.close()
+
+
+def test_clientIsConnectedSendsNothing(getClient, getRawServer):
+    r"""!Checking the connection state does not send data to the server"""
+    assert getClient.connect(port=getRawServer.getsockname()[1])
+    serverSock, _ = getRawServer.accept()
+    assert getClient.isConnected
+    assert getClient.isConnected
+    serverSock.setblocking(False)
+    with pytest.raises(BlockingIOError):
+        serverSock.recv(1)
+    serverSock.close()
+    assert getClient.disconnect()
+
+
+def test_clientIsConnectedServerClosed(getClient, getRawServer):
+    r"""!A connection closed by the server is detected"""
+    assert getClient.connect(port=getRawServer.getsockname()[1])
+    serverSock, _ = getRawServer.accept()
+    serverSock.close()
+    time.sleep(0.1)
+    assert not getClient.isConnected
+    assert getClient.disconnect()
+
+
+def test_clientReceiveFragmented(getClient, getRawServer):
+    r"""!Receive an answer in fragments - the client must return the complete answer"""
+    assert getClient.connect(port=getRawServer.getsockname()[1])
+    serverSock, _ = getRawServer.accept()
+    serverSock.sendall(b"5    ")
+    sendFragments(serverSock, [b"     [ac", b"k]"])
+    assert getClient.receive() == "[ack]"
+    serverSock.close()
+    assert getClient.disconnect()
+
+
+def test_clientReceiveInvalidHeader(getClient, getRawServer):
+    r"""!Receive an invalid header - the client returns False instead of raising an exception"""
+    assert getClient.connect(port=getRawServer.getsockname()[1])
+    serverSock, _ = getRawServer.accept()
+    serverSock.sendall(b"bad_head!!")
+    assert getClient.receive() is False
+    serverSock.close()
+    assert getClient.disconnect()
+
+
+def test_clientDisconnectTwice(getClient, getRawServer):
+    r"""!Disconnect twice - the second disconnect is also successful"""
+    assert getClient.connect(port=getRawServer.getsockname()[1])
+    getRawServer.accept()[0].close()
+    assert getClient.disconnect()
+    assert getClient.disconnect()
