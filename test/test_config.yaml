@@ -288,3 +288,30 @@ mysql_additionalFields:
   additionalFields:
     - description
     - ric
+
+# for the test_multicast
+multicast_default:
+  autoClearTimeout: 10
+
+multicast_config:
+  autoClearTimeout: 5
+  delimiterRics: "0288088, 0288089"
+  textRics: "0456789,0456790"
+  netIdentRics: "0000001"
+  triggerRic: "9999998"
+  triggerHost: "127.0.0.2"
+  triggerPort: 8090
+
+multicast_textRics:
+  textRics: "0456789"
+
+multicast_control:
+  delimiterRics: "0288088"
+  netIdentRics: "0000001"
+
+multicast_autoClear:
+  autoClearTimeout: 1
+
+multicast_triggerRic:
+  autoClearTimeout: 1
+  triggerRic: "9999998"
