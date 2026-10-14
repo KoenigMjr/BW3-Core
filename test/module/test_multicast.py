@@ -392,6 +392,7 @@ def test_multicastTriggerPacket(monkeypatch):
     multicast._cleanup()
     rawServer.close()
     packet = Packet(received[0])
+    assert received[0] == str(packet)  # same format as a packet sent by the client
     assert (packet.get("mode"), packet.get("ric"), packet.get("frequency")) == ("pocsag", "9999998", FREQ_1)
     assert packet.get("message") == Multicast._MAGIC_WAKEUP_MSG
     assert (packet.get("multicastMode"), packet.get("multicastRole")) == ("control", "trigger")
