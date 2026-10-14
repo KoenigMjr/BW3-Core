@@ -116,6 +116,11 @@ de:
   srv_restart_failed: "  ✘ Neustart von {} fehlgeschlagen: {}"
   srv_unknown_action: "Unbekannte Aktion. Bitte 'R', 'S', 'D' drücken oder Enter zum Überspringen."
   srv_stopped: "Dienst {} gestoppt."
+  srv_yaml_error: "Fehler beim Lesen von {0}: {1}"
+  srv_unknown_type: "Typ von {0} nicht erkannt (weder client noch server). Service wird übersprungen."
+  srv_write_error: "Service-Datei {0} konnte nicht geschrieben werden: {1}"
+  srv_verify_warn: "⚠ Warnung bei systemd-analyze verify:\n{0}"
+  srv_verify_timeout: "⚠ Timeout bei systemd-analyze verify für {0}"
 
   # APT & System
   wait_apt_checking: "Prüfe APT-Sperre (Lock)..."
@@ -246,6 +251,11 @@ en:
   srv_restart_failed: "  ✘ Failed to restart {}: {}"
   srv_unknown_action: "Unknown action. Please press 'R', 'S', 'D' or Enter to skip."
   srv_stopped: "Service {} stopped."
+  srv_yaml_error: "Error reading {0}: {1}"
+  srv_unknown_type: "Type of {0} not recognized (neither client nor server). Skipping service."
+  srv_write_error: "Could not write service file {0}: {1}"
+  srv_verify_warn: "⚠ Warning from systemd-analyze verify:\n{0}"
+  srv_verify_timeout: "⚠ Timeout during systemd-analyze verify for {0}"
 
   # APT & System
   wait_apt_checking: "Checking for APT lock..."

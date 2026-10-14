@@ -9,7 +9,7 @@ r"""
                 German BOS Information Script
                      by Bastian Schroll
 @file:        manager.py
-@date:        24.08.2026
+@date:        14.10.2026
 @author:      Claus Schichl
 @description: Main Management File for BOSWatch3 (install, update, service management)
 """
@@ -1029,17 +1029,63 @@ class BW3Manager:
                 # Allow graceful exit to main menu on Ctrl-C
                 break
 
+    def _detect_service_type(self, config_file):
+        """Detects 'server' or 'client' from the YAML content (not from the file name)."""
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+        except Exception as e:
+            self.log(Fore.RED + self.t('srv_yaml_error').format(config_file.name, e))
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        # client.yaml also contains a 'server:' block -> check 'client' first
+        if 'client' in data:
+            return 'client'
+        if 'server' in data or 'alarmRouter' in data:
+            return 'server'
+        return None
+
+    def _verify_service_file(self, service_path):
+        """Runs 'systemd-analyze verify' and only warns, never aborts."""
+        try:
+            res = subprocess.run(
+                ["systemd-analyze", "verify", str(service_path)],
+                capture_output=True, text=True, timeout=10
+            )
+            if res.returncode != 0 or res.stderr.strip():
+                self.log(Fore.YELLOW + self.t('srv_verify_warn').format(res.stderr.strip()))
+        except subprocess.TimeoutExpired:
+            self.log(Fore.YELLOW + self.t('srv_verify_timeout').format(service_path.name))
+        except FileNotFoundError:
+            pass  # systemd-analyze not available -> skip silently
+
     def install_single_service(self, config_file):
-        """Creates a systemd service file."""
-        # Decide which script to start based on filename
-        script_name = ("bw_server.py" if "server" in config_file.name.lower()
-                       else "bw_client.py")
+        """Creates a systemd service file (type detected from YAML content)."""
+        service_type = self._detect_service_type(config_file)
+        if service_type is None:
+            self.log(Fore.RED + self.t('srv_unknown_type').format(config_file.name))
+            return
+
+        script_name = "bw_server.py" if service_type == 'server' else "bw_client.py"
         service_name = f"bw3_{config_file.stem}.service"
+        service_path = Path("/etc/systemd/system") / service_name
+
+        if service_type == 'server':
+            description = "BOSWatch3 Server"
+            after = "network-online.target"
+            wants_line = "Wants=network-online.target\n"
+        else:
+            description = "BOSWatch3 Client"
+            after = "network.target"
+            wants_line = ""
 
         service_content = f"""[Unit]
-Description=BOSWatch3 Service: {config_file.stem}
-After=network.target
-
+Description={description}: {config_file.stem}
+After={after}
+{wants_line}
 [Service]
 Type=simple
 User=root
@@ -1051,8 +1097,13 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 """
-        with open(f"/etc/systemd/system/{service_name}", "w") as f:
-            f.write(service_content)
+        try:
+            service_path.write_text(service_content, encoding='utf-8')
+        except OSError as e:
+            self.log(Fore.RED + self.t('srv_write_error').format(service_path, e))
+            return
+
+        self._verify_service_file(service_path)
 
         subprocess.run(["systemctl", "daemon-reload"])
         subprocess.run(["systemctl", "enable", service_name])
