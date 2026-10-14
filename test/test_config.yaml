@@ -303,9 +303,31 @@ mysql_additionalFields:
   user: testUser
   password: testPassword
   database: testDatabase
+  additionalFields: description, ric
+
+mysql_additionalFieldsList:
+  host: testHost
+  user: testUser
+  password: testPassword
+  database: testDatabase
   additionalFields:
     - description
     - ric
+
+mysql_allFields:
+  host: testHost
+  user: testUser
+  password: testPassword
+  database: testDatabase
+  allFields: true
+
+mysql_allAndAdditionalFields:
+  host: testHost
+  user: testUser
+  password: testPassword
+  database: testDatabase
+  allFields: true
+  additionalFields: description
 
 # for the test_multicast
 multicast_default:
