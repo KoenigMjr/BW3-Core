@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_telegram.py
-@date:        12.10.2026
+@date:        14.10.2026
 @author:      Claus Schichl
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -26,6 +26,7 @@ from boswatch.utils import paths
 
 from boswatch.configYaml import ConfigYAML
 from boswatch.packet import Packet
+from boswatch import wildcard
 from plugin.telegram import BoswatchPlugin as Telegram
 from plugin.telegram import TelegramSender
 
@@ -126,6 +127,23 @@ def buildPacket(mode, fields=None):
     for fieldName, value in (fields or {}).items():
         packet.set(fieldName, value)
     return packet
+
+
+@pytest.fixture
+def listWildcards(monkeypatch):
+    r"""!Register the list wildcards of the multicast module only for the test"""
+    monkeypatch.setitem(wildcard._additionalWildcards, "{RIC_LIST}", "ric_list")
+    monkeypatch.setitem(wildcard._additionalWildcards, "{DESCRIPTION_LIST}", "description_list")
+
+
+def sendPocsag(getConfig, fakeTelegramApi, section, fields):
+    r"""!Send a POCSAG alarm with the given config section
+    @return text of the sent message"""
+    telegram = Telegram(getConfig.get(section))
+    telegram._run(buildPacket("pocsag", fields))
+    assert waitForRequests(fakeTelegramApi, 1)
+    telegram._cleanup()
+    return fakeTelegramApi[0][1]["text"]
 
 
 def isValidMarkdown(text):
@@ -269,6 +287,44 @@ def test_pluginHtmlMessage(getConfig, fakeTelegramApi):
     assert waitForRequests(fakeTelegramApi, 1)
     telegram._cleanup()
     assert fakeTelegramApi[0][1]["text"] == "<b>1234567</b> Brand &amp; Rauch"
+
+
+def test_pluginListRawDefault(getConfig, fakeTelegramApi, listWildcards):
+    r"""!Without list_lines a list wildcard is sent as it is stored in the packet"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listRaw", {"message": "Brand", "ric_list": "1234567, 2345678"})
+    assert text == "Alarm Brand\n- 1234567, 2345678\n"
+
+
+def test_pluginListLines(getConfig, fakeTelegramApi, listWildcards):
+    r"""!With list_lines a line with one list wildcard is repeated for each entry
+    A line with more than one list wildcard keeps the raw format"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listLines",
+                      {"message": "Brand", "ric_list": "1234567, 2345678", "description_list": "Wache 1, Wache 2"})
+    assert text == "Alarm Brand\n- 1234567 Brand\n- 2345678 Brand\n1234567, 2345678 / Wache 1, Wache 2\n"
+
+
+def test_pluginListLinesEmptyAndDouble(getConfig, fakeTelegramApi, listWildcards):
+    r"""!Empty and double list entries are dropped"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listLines", {"message": "Brand", "ric_list": "1234567, , 1234567, 2345678"})
+    assert text == "Alarm Brand\n- 1234567 Brand\n- 2345678 Brand\n1234567, , 1234567, 2345678 / {DESCRIPTION_LIST}\n"
+
+
+def test_pluginListLinesEmptyList(getConfig, fakeTelegramApi, listWildcards):
+    r"""!A line with an empty list is removed"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listLines", {"message": "Brand", "ric_list": ", "})
+    assert text == "Alarm Brand\n,  / {DESCRIPTION_LIST}\n"
+
+
+def test_pluginListLinesWithoutList(getConfig, fakeTelegramApi, listWildcards):
+    r"""!A packet without list (no multicast) keeps the line untouched"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listLines", {"message": "Brand"})
+    assert text == "Alarm Brand\n- {RIC_LIST} Brand\n{RIC_LIST} / {DESCRIPTION_LIST}\n"
+
+
+def test_pluginListLinesNoWildcardsInEntries(getConfig, fakeTelegramApi, listWildcards):
+    r"""!Wildcards inside a list entry are not replaced"""
+    text = sendPocsag(getConfig, fakeTelegramApi, "telegram_listLines", {"message": "Brand", "ric_list": "{MSG}"})
+    assert text == "Alarm Brand\n- {MSG} Brand\n{MSG} / {DESCRIPTION_LIST}\n"
 
 
 def test_pluginCoordinates(makeTelegram, fakeTelegramApi):

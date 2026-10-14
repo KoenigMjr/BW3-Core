@@ -266,6 +266,24 @@ telegram_html:
   parse_mode: "HTML"
   message_pocsag: "<b>{RIC}</b> {MSG}"
 
+telegram_listRaw:
+  botToken: testToken
+  chatIds:
+    - 111
+  message_pocsag: |
+    Alarm {MSG}
+    - {RIC_LIST}
+
+telegram_listLines:
+  botToken: testToken
+  chatIds:
+    - 111
+  list_lines: true
+  message_pocsag: |
+    Alarm {MSG}
+    - {RIC_LIST} {MSG}
+    {RIC_LIST} / {DESCRIPTION_LIST}
+
 telegram_missingToken:
   chatIds:
     - 111
