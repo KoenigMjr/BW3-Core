@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        telegram.py
-@date:        12.10.2026
+@date:        14.10.2026
 @author:      Claus Schichl
 @description: Telegram-Plugin
 """
@@ -25,6 +25,10 @@ from plugin.pluginBase import PluginBase
 
 # Setup logging
 logger = logging.getLogger(__name__)
+
+# list wildcards (e.g. {RIC_LIST}) contain all values of a multicast alarm, joined with ", "
+LIST_WILDCARD = re.compile(r"\{[A-Z0-9_]+_LIST\}")
+LIST_SEPARATOR = ", "
 
 
 # ===========================
@@ -266,16 +270,49 @@ class BoswatchPlugin(PluginBase):
         # ensure sender exists before alarms are processed
         self._ensure_sender()
 
+    def _formatMessage(self, template):
+        r"""!Replace the wildcards of a message template
+
+        With list_lines a line of the template with exactly one list wildcard
+        (e.g. {RIC_LIST}) is repeated for each entry of the list. Empty and double entries
+        are dropped, a line with an empty list is removed. Lines with more than one list
+        wildcard keep the raw format.
+
+        @param template: Message template with wildcards
+        @return Message with replaced wildcards"""
+        if not self.config.get("list_lines", default=False):
+            return self.parseWildcards(template)
+        lines = []
+        for line in template.split("\n"):
+            listWildcards = set(LIST_WILDCARD.findall(line))
+            if len(listWildcards) != 1:
+                lines.append(self.parseWildcards(line))
+                continue
+            listWildcard = listWildcards.pop()
+            rawList = self.parseWildcards(listWildcard)
+            if rawList == listWildcard:
+                lines.append(self.parseWildcards(line))  # no list in this packet - keep line as it is
+                continue
+            entries = []
+            for entry in rawList.split(LIST_SEPARATOR):
+                entry = entry.strip()
+                if entry and entry not in entries:
+                    entries.append(entry)
+            # replace the other wildcards first - so wildcards inside a list entry are not replaced
+            parts = [self.parseWildcards(part) for part in line.split(listWildcard)]
+            lines.extend(entry.join(parts) for entry in entries)
+        return "\n".join(lines)
+
     def fms(self, bwPacket):
         r"""!Called on FMS alarm"""
         if self._has_sender():
-            msg = self.parseWildcards(self.config.get("message_fms", default="{FMS}"))
+            msg = self._formatMessage(self.config.get("message_fms", default="{FMS}"))
             self.sender.send_message(msg)
 
     def pocsag(self, bwPacket):
         r"""!Called on POCSAG alarm"""
         if self._has_sender():
-            msg = self.parseWildcards(self.config.get("message_pocsag", default="{RIC}({SRIC})\n{MSG}"))
+            msg = self._formatMessage(self.config.get("message_pocsag", default="{RIC}({SRIC})\n{MSG}"))
             self.sender.send_message(msg)
 
             if self.config.get("coordinates", default=False):
@@ -287,13 +324,13 @@ class BoswatchPlugin(PluginBase):
     def zvei(self, bwPacket):
         r"""!Called on ZVEI alarm"""
         if self._has_sender():
-            msg = self.parseWildcards(self.config.get("message_zvei", default="{TONE}"))
+            msg = self._formatMessage(self.config.get("message_zvei", default="{TONE}"))
             self.sender.send_message(msg)
 
     def msg(self, bwPacket):
         r"""!Called on MSG packet"""
         if self._has_sender():
-            msg = self.parseWildcards(self.config.get("message_msg", default="{MSG}"))
+            msg = self._formatMessage(self.config.get("message_msg", default="{MSG}"))
             self.sender.send_message(msg)
 
     def teardown(self):

@@ -32,6 +32,7 @@ Das Plugin hält die Vorgaben der Telegram API automatisch ein: Eine integrierte
 |max_delay|Maximale Retry-Verzögerung|300 [Sek.]|
 |parse_mode|Formatierung ("HTML" oder "MarkdownV2"), !Case-sensitive! Empfehlung: HTML|leer|
 |coordinates|Aktiviert die Verarbeitung von Standortdaten|false|
+|list_lines|Listen-Wildcards (`{..._LIST}`) mit einem Eintrag pro Zeile ausgeben|false|
 
 **Beispiel:**
 ```yaml
@@ -93,6 +94,27 @@ Wichtig dabei:
 - Die Wartezeit gilt pro Empfänger und wird erst nach der nächsten erfolgreich zugestellten Nachricht wieder auf `initial_delay` zurückgesetzt. Nach einem längeren Ausfall kann es daher bis zu `max_delay` dauern, bis die erste Nachricht zugestellt wird. Wer das schneller möchte, setzt `max_delay` kleiner.
 - Meldet Telegram eine Überlastung (HTTP 429), wird die von Telegram vorgegebene Wartezeit verwendet.
 - Fehler, die eine Wiederholung nicht beheben kann (z. B. falscher `botToken` oder falsche Chat-ID), werden nicht wiederholt. Die Nachricht wird sofort verworfen und im Log vermerkt.
+
+### list_lines
+Bei Multicast-Alarmen fasst das [Multicast-Modul](../modul/multicast.md) die Werte aller Empfänger in Listen-Wildcards wie `{RIC_LIST}` oder `{DESCRIPTION_LIST}` zusammen, getrennt mit `, `.
+
+- `false` (Standard): Die Liste wird so ausgegeben, wie sie im Paket steht, z. B. `1234567, 2345678, 3456789`.
+- `true`: Eine Zeile der Vorlage mit genau einer Listen-Wildcard wird für jeden Eintrag wiederholt, also ein Eintrag pro Zeile. Leere und doppelte Einträge entfallen, eine Zeile mit leerer Liste entfällt ganz. Stehen mehrere Listen-Wildcards in einer Zeile, bleibt diese Zeile im Rohformat.
+
+```yaml
+list_lines: true
+message_pocsag: |
+  <b>Alarm:</b> {MSG}
+  • {RIC_LIST}
+```
+ergibt bei `ric_list = "1234567, 2345678"`:
+```
+Alarm: Brand
+• 1234567
+• 2345678
+```
+
+**Hinweis**: Enthält ein einzelner Wert selbst `, ` (z. B. eine Beschreibung `Wache 1, Zug 2`), lässt sich das nicht vom Trenner unterscheiden und der Wert wird ebenfalls aufgeteilt.
 
 ---
 ## Modul Abhängigkeiten
