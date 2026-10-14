@@ -10,7 +10,7 @@ r"""!
                      by Bastian Schroll
 
 @file:        test_router.py
-@date:        12.10.2026
+@date:        14.10.2026
 @author:      Claus Schichl
 @description: Unittests for BOSWatch. File have to run as "pytest" unittest
 """
@@ -58,6 +58,24 @@ def routeModifyInPlace(bwPacket):
     return None
 
 
+def routeReturnList(bwPacket):
+    r"""!Route callback which returns a list of two packets"""
+    calledRoutes.append("list")
+    packetList = []
+    for branch in ["branch1", "branch2"]:
+        packet = Packet()
+        packet.set("testField", branch)
+        packetList.append(packet)
+    return packetList
+
+
+def routeStopBranch1(bwPacket):
+    r"""!Route callback which stops only the packet of branch1"""
+    if bwPacket.get("testField") == "branch1":
+        return False
+    return None
+
+
 def routeSaveField(bwPacket):
     r"""!Route callback which saves the content of the test field"""
     calledRoutes.append(bwPacket.get("testField"))
@@ -102,6 +120,13 @@ def test_routeCreateDefaults():
     route = Route("testRoute", routeReturnNone)
     assert route.statistics is None
     assert route.cleanup is None
+    assert route.isRouter is False
+
+
+def test_routeCreateRouter():
+    r"""!Create a route point which jumps into another router"""
+    route = Route("testRoute", routeReturnNone, isRouter=True)
+    assert route.isRouter is True
 
 
 def test_routerCreate(makeRouter):
@@ -160,32 +185,99 @@ def test_routerReturnFalse(makeRouter, makePacket):
 
 
 def test_routerReturnFalseResult(makeRouter, makePacket):
-    r"""!After a stop the router returns the last packet before the stop"""
+    r"""!After a stop the router returns False"""
     makeRouter.addRoute(Route("modified", routeReturnModified))
     makeRouter.addRoute(Route("false", routeReturnFalse))
-    result = makeRouter.runRouter(makePacket)
-    assert result.get("testField") == "modified"
+    assert makeRouter.runRouter(makePacket) is False
 
 
 def test_routerSubRouterStopped(makeRouter, makePacket):
     r"""!A stopped sub router does not stop the parent router"""
     subRouter = Router("subRouter")
     subRouter.addRoute(Route("false", routeReturnFalse))
-    makeRouter.addRoute(Route("subRouter", subRouter.runRouter))
+    makeRouter.addRoute(Route("subRouter", subRouter.runRouter, isRouter=True))
     makeRouter.addRoute(Route("save", routeSaveField))
     makeRouter.runRouter(makePacket)
     assert calledRoutes == ["false", "original"]
+
+
+def test_routerSubRouterStoppedWithoutFlag(makeRouter, makePacket):
+    r"""!A stopped sub router without the isRouter flag stops the parent router"""
+    subRouter = Router("subRouter")
+    subRouter.addRoute(Route("false", routeReturnFalse))
+    makeRouter.addRoute(Route("subRouter", subRouter.runRouter))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    makeRouter.runRouter(makePacket)
+    assert calledRoutes == ["false"]
 
 
 def test_routerSubRouterModified(makeRouter, makePacket):
     r"""!The parent router continues with the packet modified by the sub router"""
     subRouter = Router("subRouter")
     subRouter.addRoute(Route("modified", routeReturnModified))
-    subRouter.addRoute(Route("false", routeReturnFalse))
-    makeRouter.addRoute(Route("subRouter", subRouter.runRouter))
+    makeRouter.addRoute(Route("subRouter", subRouter.runRouter, isRouter=True))
     makeRouter.addRoute(Route("save", routeSaveField))
     makeRouter.runRouter(makePacket)
-    assert calledRoutes == ["modified", "false", "modified"]
+    assert calledRoutes == ["modified", "modified"]
+
+
+def test_routerSubRouterStoppedIsolated(makeRouter, makePacket):
+    r"""!Modifications of a stopped sub router are not passed to the parent router"""
+    subRouter = Router("subRouter")
+    subRouter.addRoute(Route("modified", routeReturnModified))
+    subRouter.addRoute(Route("false", routeReturnFalse))
+    makeRouter.addRoute(Route("subRouter", subRouter.runRouter, isRouter=True))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    makeRouter.runRouter(makePacket)
+    assert calledRoutes == ["modified", "false", "original"]
+
+
+def test_routerFanOut(makeRouter, makePacket):
+    r"""!A returned list runs the rest of the route for each packet"""
+    makeRouter.addRoute(Route("list", routeReturnList))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    result = makeRouter.runRouter(makePacket)
+    assert calledRoutes == ["list", "branch1", "branch2"]
+    assert [packet.get("testField") for packet in result] == ["branch1", "branch2"]
+
+
+def test_routerFanOutStopOneBranch(makeRouter, makePacket):
+    r"""!A stop in one branch does not stop the other branches"""
+    makeRouter.addRoute(Route("list", routeReturnList))
+    makeRouter.addRoute(Route("stopBranch1", routeStopBranch1))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    result = makeRouter.runRouter(makePacket)
+    assert calledRoutes == ["list", "branch2"]
+    assert [packet.get("testField") for packet in result] == ["branch2"]
+
+
+def test_routerFanOutAllBranchesStopped(makeRouter, makePacket):
+    r"""!If all branches are stopped the router returns False"""
+    makeRouter.addRoute(Route("list", routeReturnList))
+    makeRouter.addRoute(Route("false", routeReturnFalse))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    assert makeRouter.runRouter(makePacket) is False
+    assert calledRoutes == ["list", "false", "false"]
+
+
+def test_routerFanOutNestedAllBranchesStopped(makeRouter, makePacket):
+    r"""!A nested fan-out whose branches are all stopped returns False - no empty result is collected as packet"""
+    makeRouter.addRoute(Route("list", routeReturnList))
+    makeRouter.addRoute(Route("list", routeReturnList))
+    makeRouter.addRoute(Route("false", routeReturnFalse))
+    makeRouter.addRoute(Route("save", routeSaveField))
+    assert makeRouter.runRouter(makePacket) is False
+    assert "branch1" not in calledRoutes and "branch2" not in calledRoutes
+
+
+def test_routerRunWithList(makeRouter):
+    r"""!A list given to the router runs the complete route for each packet"""
+    makeRouter.addRoute(Route("save", routeSaveField))
+    packetList = routeReturnList(None)
+    calledRoutes.clear()
+    result = makeRouter.runRouter(packetList)
+    assert calledRoutes == ["branch1", "branch2"]
+    assert len(result) == 2
 
 
 def test_routerModifyInPlaceIsolated(makeRouter, makePacket):
